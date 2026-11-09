@@ -191,8 +191,9 @@ jobs:
           MALI_DIR="kernel_modules/kernel5.4/gpu/gondul/mali_new"
           if [ -d "$MALI_DIR" ]; then
             # Install headers in output directory first (needed for external module builds with O=)
-            echo "Installing kernel headers in output directory..."
-            make O=out headers_install -j$(nproc)
+            # Must specify ARCH=arm64 to install arm64 headers, not host x86 headers
+            echo "Installing arm64 kernel headers in output directory..."
+            make O=out ARCH=arm64 headers_install -j$(nproc)
 
             # Build external module from kernel source tree using M= parameter
             # This uses the kernel source tree (which has all headers) instead of output directory
