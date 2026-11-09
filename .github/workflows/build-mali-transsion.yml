@@ -187,7 +187,9 @@ jobs:
           MALI_DIR="kernel_modules/kernel5.4/gpu/gondul/mali_new"
           if [ -d "$MALI_DIR" ]; then
             cd "$MALI_DIR"
-            make KDIR=../../../../out \
+            # Mali driver is 5 levels deep from kernel/: kernel_modules/kernel5.4/gpu/gondul/mali_new
+            # So we need ../../../../../out to reach kernel/out
+            make KDIR=../../../../../out \
               CONFIG_MALI_MIDGARD=m \
               CONFIG_MALI_CSF_SUPPORT=y \
               CONFIG_MALI_DEVFREQ=y \
