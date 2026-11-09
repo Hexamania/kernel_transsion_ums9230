@@ -1,0 +1,179 @@
+name: Build Mali CSF Module (Transsion UMS9230)
+
+on:
+  workflow_dispatch:
+    inputs:
+      kernel_ref:
+        description: 'Kernel branch/tag/commit to build'
+        required: false
+        default: 'master'
+        type: string
+      enable_csf:
+        description: 'Enable CSF (Valhall) support'
+        required: false
+        default: true
+        type: boolean
+
+  push:
+    branches: [main, master]
+    paths:
+      - '.github/workflows/build-mali-transsion.yml'
+      - 'build/**'
+
+  schedule:
+    - cron: '0 2 * * 0'  # Weekly Sunday 2 AM
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  build:
+    name: Build Mali CSF Module
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      KERNEL_REPO: https://github.com/Hexamania/kernel_transsion_ums9230.git
+      KERNEL_REF: ${{ github.event.inputs.kernel_ref || 'master' }}
+      ENABLE_CSF: ${{ github.event.inputs.enable_csf || 'true' }}
+
+    steps:
+      - name: Checkout build scripts
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential clang-15 lld-15 llvm-15 \
+            libssl-dev bc flex bison libelf-dev dwarves \
+            python3 git wget cpio kmod ccache
+
+      - name: Setup clang
+        run: |
+          sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-15 100
+          sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-15 100
+          sudo update-alternatives --install /usr/bin/ld.lld ld.lld /usr/bin/ld.lld-15 100
+          sudo update-alternatives --install /usr/bin/llvm-ar llvm-ar /usr/bin/llvm-ar-15 100
+
+      - name: Clone kernel source (shallow)
+        run: |
+          git clone --depth=1 --branch "${KERNEL_REF}" "${KERNEL_REPO}" kernel
+          cd kernel
+          echo "KERNEL_COMMIT=$(git rev-parse HEAD)" >> $GITHUB_ENV
+
+      - name: Check Mali CSF config
+        run: |
+          cd kernel
+          echo "=== Mali configs ==="
+          grep -r "CONFIG_MALI" arch/arm64/configs/ | head -20 || true
+          grep -r "CONFIG_MALI_CSF_SUPPORT" . || echo "CSF config not found"
+
+      - name: Apply ARM Mali driver (BX304L01B-r44p1)
+        if: ${{ env.ENABLE_CSF == 'true' }}
+        run: |
+          cd kernel
+          # Copy ARM official driver if not present
+          if [ ! -d "kernel_modules/kernel5.4/gpu/gondul/mali_new" ]; then
+            mkdir -p kernel_modules/kernel5.4/gpu/gondul
+            cp -r ${{ github.workspace }}/drivers/mali/arm-official \
+              kernel_modules/kernel5.4/gpu/gondul/mali_new
+          fi
+
+      - name: Build kernel
+        run: |
+          cd kernel
+          source setup.env
+          ./build.sh config-dev
+          ./build.sh compile
+
+      - name: Build Mali module with CSF
+        run: |
+          cd kernel
+          MALI_DIR="kernel_modules/kernel5.4/gpu/gondul/mali_new"
+          if [ -d "$MALI_DIR" ]; then
+            cd "$MALI_DIR"
+            make KDIR=../../../../out \
+              CONFIG_MALI_MIDGARD=m \
+              CONFIG_MALI_CSF_SUPPORT=y \
+              CONFIG_MALI_DEVFREQ=y \
+              CONFIG_MALI_GATOR_SUPPORT=y \
+              CONFIG_MALI_DEBUG=n \
+              -j$(nproc)
+          else
+            echo "Mali driver not found!"
+            exit 1
+          fi
+
+      - name: Verify module
+        run: |
+          cd kernel
+          find . -name "mali_kbase.ko" -exec ls -lh {} \;
+          find . -name "mali_kbase.ko" -exec file {} \;
+
+      - name: Upload mali_kbase.ko
+        uses: actions/upload-artifact@v4
+        with:
+          name: mali_kbase-ko-${{ env.KERNEL_COMMIT }}
+          path: kernel/**/mali_kbase.ko
+          retention-days: 30
+          compression-level: 6
+
+      - name: Upload build info
+        run: |
+          cd kernel
+          echo "Kernel commit: ${KERNEL_COMMIT}" > build-info.txt
+          echo "Branch: ${KERNEL_REF}" >> build-info.txt
+          echo "CSF enabled: ${ENABLE_CSF}" >> build-info.txt
+          echo "Build date: $(date -u)" >> build-info.txt
+          uname -a >> build-info.txt
+          echo "Module size: $(ls -lh **/mali_kbase.ko | awk '{print $5}')" >> build-info.txt
+          cat build-info.txt
+
+      - name: Upload build info
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-info-${{ env.KERNEL_COMMIT }}
+          path: kernel/build-info.txt
+          retention-days: 30
+
+  release:
+    name: Create Release
+    needs: build
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: mali-csf-${{ needs.build.outputs.kernel_commit || github.sha }}
+          name: "Mali CSF Module - ${{ needs.build.outputs.kernel_commit || github.sha }}"
+          body: |
+            Mali kernel module with CSF (Valhall) support for Transsion UMS9230
+
+            **Kernel:** `${{ needs.build.outputs.kernel_commit || github.sha }}`
+            **Branch:** `${{ github.event.inputs.kernel_ref || 'master' }}`
+            **CSF Enabled:** ${{ github.event.inputs.enable_csf || 'true' }}
+
+            **Install:**
+            ```bash
+            adb push mali_kbase.ko /data/local/tmp/
+            adb shell "insmod /data/local/tmp/mali_kbase.ko"
+            ```
+
+            **Verify:**
+            ```bash
+            adb shell "dmesg -T | grep -i -e mali -e csf"
+            ```
+          files: |
+            artifacts/mali_kbase-ko-*/mali_kbase.ko
+            artifacts/build-info-*/build-info.txt
+          draft: false
+          prerelease: false

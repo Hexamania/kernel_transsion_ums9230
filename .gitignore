@@ -1,0 +1,79 @@
+# Built artifacts
+*.ko
+*.o
+*.a
+*.so
+out/
+*.img
+*.dtb
+*.ko.cmd
+*.mod.c
+Module.symvers
+modules.order
+
+# Logs and temporary files
+*.log
+*.txt
+*.bin
+*.cpio
+*.tar
+*.zip
+*.7z
+*.gz
+*.xz
+
+# Platform tools (download separately)
+tools/platform-tools/
+adb.exe
+fastboot.exe
+*.dll
+*.exe
+*.so
+
+# Kernel sources (cloned in CI, too large for repo)
+kernel_transsion_ums9230/
+android_kernel_realme_RMX3511/
+kernel_src/
+kernel/
+
+# Large extracted files
+vendor.img
+vendor_*.img
+vendor_extracted/
+ramdisk.cpio
+sysdump.bin
+uboot_log.bin
+
+# IDE/OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Build directories
+build/
+out/
+logs/archived/
+
+# Driver source (keep structure, ignore build artifacts)
+drivers/mali/*/midgard/**/*.o
+drivers/mali/*/midgard/**/*.ko
+drivers/mali/*/midgard/**/*.mod.c
+drivers/mali/*/midgard/**/.*.cmd
+drivers/mali/*/midgard/**/Module.symvers
+
+# Magisk modules (keep source, ignore zips)
+magisk-modules/*/*.zip
+magisk-modules/*/system/
+
+# Archives
+*.tar
+BX304L01B-*.tar
+VX504X08X-*.tar
+
+# Pstore
+pstore/
+
+# Recovery
+recovery.log
+final_flash_install.log

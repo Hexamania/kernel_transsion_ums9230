@@ -1,0 +1,6 @@
+id=fix_gpu_pm_early
+name=Fix GPU PM Early (Infinix X6525)
+version=1.0
+versionCode=1
+author=Claude
+description=Early init GPU power management fix for Mali-G57 (Valhall) with Midgard r40p0 kernel driver. Runs at boot before SurfaceFlinger.

@@ -1,0 +1,56 @@
+name: Build Mali CSF Module
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'driver/**'
+      - 'build_mali_docker.sh'
+      - 'Dockerfile.mali'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout kernel source (5.4.256)
+        uses: actions/checkout@v4
+        with:
+          repository: realme-kernel/android_kernel_realme_RMX3511
+          ref: 5.4.256
+          path: kernel
+          submodules: false
+
+      - name: Checkout driver source
+        uses: actions/checkout@v4
+        path: driver
+
+      - name: Set up Mali driver
+        run: |
+          cd kernel
+          cp -r ../driver/product/kernel/drivers/gpu/arm kernel_modules/kernel5.4/gpu/gondul/mali_new
+
+      - name: Build kernel
+        run: |
+          cd kernel
+          source setup.env
+          ./build.sh config-dev
+          ./build.sh compile
+
+      - name: Build Mali module with CSF
+        run: |
+          cd kernel/kernel_modules/kernel5.4/gpu/gondul/mali_new
+          make KDIR=../../../../out \
+            CONFIG_MALI_MIDGARD=m \
+            CONFIG_MALI_CSF_SUPPORT=y \
+            CONFIG_MALI_DEVFREQ=y \
+            CONFIG_MALI_GATOR_SUPPORT=y \
+            CONFIG_MALI_DEBUG=n \
+            -j$(nproc)
+
+      - name: Upload mali_kbase.ko
+        uses: actions/upload-artifact@v4
+        with:
+          name: mali_kbase.ko
+          path: kernel/kernel_modules/kernel5.4/gpu/gondul/mali_new/mali_kbase.ko
+          retention-days: 7

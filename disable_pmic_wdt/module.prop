@@ -1,0 +1,8 @@
+id=disable_pmic_wdt
+name=Disable PMIC Watchdog
+version=1.0
+versionCode=1
+author=Infinix X6525 Port
+description=Disables sprd_pmic_wdt kernel module to prevent CM4 PMIC watchdog timeout during reboot on Infinix X6525 (Spreadtrum UMS9230)
+updateJson=
+minMagisk=25000

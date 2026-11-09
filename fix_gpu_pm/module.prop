@@ -1,0 +1,8 @@
+id=fix_gpu_pm
+name=Fix GPU Power Management
+version=1.0
+versionCode=1
+author=Infinix X6525 Port
+description=Workaround for Mali-G57 (Valhall) with Midgard r40p0 driver: disables GPU runtime PM, sets performance governor, prevents GPU power cycling that causes Chrome GPU channel timeout
+updateJson=
+minMagisk=25000
