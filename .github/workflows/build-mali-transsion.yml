@@ -33,7 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 180
     env:
-      KERNEL_REPO: https://github.com/Hexamania/kernel_transsion_ums9230.git
+      KERNEL_REPO: https://github.com/Bocchi-The-Dev/kernel_transsion_ums9230.git
       KERNEL_REF: ${{ github.event.inputs.kernel_ref || 'master' }}
       ENABLE_CSF: ${{ github.event.inputs.enable_csf || 'true' }}
 
@@ -44,17 +44,18 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
+          # Ubuntu 26.04 has clang-18 by default
           sudo apt-get install -y --no-install-recommends \
-            build-essential clang-15 lld-15 llvm-15 \
+            build-essential clang lld llvm \
             libssl-dev bc flex bison libelf-dev dwarves \
             python3 git wget cpio kmod ccache
 
       - name: Setup clang
         run: |
-          sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-15 100
-          sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-15 100
-          sudo update-alternatives --install /usr/bin/ld.lld ld.lld /usr/bin/ld.lld-15 100
-          sudo update-alternatives --install /usr/bin/llvm-ar llvm-ar /usr/bin/llvm-ar-15 100
+          # Use system clang (clang-18 on Ubuntu 26.04)
+          clang --version
+          which ld.lld
+          which llvm-ar
 
       - name: Clone kernel source (shallow)
         run: |
