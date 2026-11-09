@@ -13,6 +13,13 @@ on:
         required: false
         default: true
         type: boolean
+  push:
+    branches:
+      - build-infra
+    paths:
+      - '.github/workflows/build-mali-transsion.yml'
+      - 'drivers/mali/arm-official/**'
+      - 'build/**'
 
 permissions:
   contents: write
