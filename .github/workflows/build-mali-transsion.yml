@@ -119,8 +119,9 @@ jobs:
             echo "build.sh not found or invalid, using manual GKI build by sourcing build.config chain..."
             # Source the build.config chain to get defconfig
             # build.config.gki.aarch64 sources: build.config.common, build.config.aarch64, build.config.gki
+            # These files are in the kernel root, so ROOT_DIR=kernel_root, KERNEL_DIR=""
             export ROOT_DIR=$(pwd)
-            export KERNEL_DIR=$(pwd)
+            export KERNEL_DIR=""
 
             # Source the build.config files in order
             if [ -f "build.config.common" ]; then
