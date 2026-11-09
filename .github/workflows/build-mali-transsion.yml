@@ -199,6 +199,7 @@ jobs:
               CONFIG_MALI_DEVFREQ=y \
               CONFIG_MALI_GATOR_SUPPORT=y \
               CONFIG_MALI_DEBUG=n \
+              CONFIG_MALI_PLATFORM_NAME="devicetree" \
               KCFLAGS="-Wno-error -Wno-return-type -Wno-misleading-indentation -Wno-implicit-int -Wno-implicit-function-declaration -fno-sanitize=shadow-call-stack" \
               -j$(nproc) modules
           else
