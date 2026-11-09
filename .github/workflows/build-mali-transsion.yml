@@ -190,6 +190,10 @@ jobs:
           cd kernel
           MALI_DIR="kernel_modules/kernel5.4/gpu/gondul/mali_new"
           if [ -d "$MALI_DIR" ]; then
+            # Install headers in output directory first (needed for external module builds with O=)
+            echo "Installing kernel headers in output directory..."
+            make O=out headers_install -j$(nproc)
+
             # Build external module from kernel source tree using M= parameter
             # This uses the kernel source tree (which has all headers) instead of output directory
             # Disable shadow-call-stack sanitizer (not supported on Ubuntu 26.04 clang)
