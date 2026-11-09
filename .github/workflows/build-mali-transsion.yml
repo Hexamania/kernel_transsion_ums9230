@@ -181,6 +181,10 @@ jobs:
           # We only need kernel output (Module.symvers, .config) for building external Mali module
           echo "Skipping in-tree modules build (has broken vendor modules); proceeding to Mali module build"
 
+          # Prepare kernel build environment for external modules (installs headers, scripts, Module.symvers)
+          echo "Preparing kernel build environment for external modules..."
+          make O=out modules_prepare -j$(nproc)
+
       - name: Build Mali module with CSF
         run: |
           cd kernel
