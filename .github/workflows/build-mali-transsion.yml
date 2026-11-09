@@ -39,7 +39,8 @@ jobs:
             build-essential clang lld llvm \
             libssl-dev bc flex bison libelf-dev dwarves \
             python3 git wget cpio kmod ccache \
-            python3-pyelftools libncurses5-dev
+            python3-pyelftools libncurses5-dev \
+            gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi
 
       - name: Setup clang
         run: |
@@ -73,6 +74,11 @@ jobs:
       - name: Build kernel (GKI style)
         run: |
           cd kernel
+          # Debug: show build.config content
+          echo "=== build.config.gki.aarch64 ==="
+          cat build.config.gki.aarch64
+          echo "================================="
+
           # Try to download Android kernel build.sh from AOSP (correct path)
           # First try kernel-build-tools repo with build/ subdir
           curl -fsL -o build.sh https://raw.githubusercontent.com/google/kernel-build-tools/main/build/build.sh || \
@@ -100,9 +106,12 @@ jobs:
           else
             echo "build.sh not found or invalid, using manual GKI build..."
             # Manual GKI build using build.config
-            # Extract defconfig from build.config
-            DEFCONFIG=$(grep -E '^KERNEL_DEFCONFIG=' build.config.gki.aarch64 | cut -d= -f2 | tr -d '"' || echo "gki_defconfig")
-            EXTRA_CONFIGS=$(grep -E '^EXTRA_CONFIGS=' build.config.gki.aarch64 | cut -d= -f2 | tr -d '"' || echo "")
+            # Extract defconfig from build.config - handle various formats
+            DEFCONFIG=$(grep -E '^KERNEL_DEFCONFIG=' build.config.gki.aarch64 | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'" | xargs || echo "gki_defconfig")
+            EXTRA_CONFIGS=$(grep -E '^EXTRA_CONFIGS=' build.config.gki.aarch64 | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'" | xargs || echo "")
+
+            echo "DEFCONFIG: '${DEFCONFIG}'"
+            echo "EXTRA_CONFIGS: '${EXTRA_CONFIGS}'"
 
             export ARCH=arm64
             export CC=clang
@@ -117,10 +126,28 @@ jobs:
             export CROSS_COMPILE_ARM32=arm-linux-gnueabi-
             export CLANG_TRIPLE=aarch64-linux-gnu-
 
-            make O=out ${DEFCONFIG}
+            # Check if defconfig exists
+            if [ -f "arch/arm64/configs/${DEFCONFIG}" ] || [ -f "arch/arm64/configs/${DEFCONFIG}_defconfig" ]; then
+              make O=out ${DEFCONFIG}
+            else
+              # Try common GKI defconfigs
+              for d in gki_defconfig gki_aarch64_defconfig vendor_gki_defconfig; do
+                if [ -f "arch/arm64/configs/${d}" ]; then
+                  DEFCONFIG=$d
+                  break
+                fi
+              done
+              echo "Using defconfig: ${DEFCONFIG}"
+              make O=out ${DEFCONFIG}
+            fi
+
             if [ -n "${EXTRA_CONFIGS}" ]; then
               for config in ${EXTRA_CONFIGS}; do
-                scripts/kconfig/merge_config.sh -m -O out out/.config ${config}
+                if [ -f "${config}" ]; then
+                  scripts/kconfig/merge_config.sh -m -O out out/.config ${config}
+                else
+                  echo "Config fragment not found: ${config}"
+                fi
               done
             fi
             make O=out -j$(nproc)
