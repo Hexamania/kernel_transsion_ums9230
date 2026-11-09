@@ -204,8 +204,9 @@ jobs:
             make O=out KCFLAGS="-Wno-error -Wno-return-type -Wno-misleading-indentation -Wno-implicit-int -Wno-implicit-function-declaration" ${MAKE_GOALS} -j$(nproc)
           fi
 
-          # Build modules
-          make O=out KCFLAGS="-Wno-error -Wno-return-type -Wno-misleading-indentation -Wno-implicit-int -Wno-implicit-function-declaration" modules -j$(nproc)
+          # Skip 'make modules' - some vendor modules (touchscreen/NFC) have broken dependencies
+          # We only need kernel output (Module.symvers, .config) for building external Mali module
+          echo "Skipping in-tree modules build (has broken vendor modules); proceeding to Mali module build"
 
       - name: Build Mali module with CSF
         run: |
