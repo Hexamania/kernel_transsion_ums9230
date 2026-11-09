@@ -189,12 +189,14 @@ jobs:
             cd "$MALI_DIR"
             # Mali driver is 5 levels deep from kernel/: kernel_modules/kernel5.4/gpu/gondul/mali_new
             # So we need ../../../../../out to reach kernel/out
+            # Disable shadow-call-stack sanitizer (not supported on Ubuntu 26.04 clang)
             make KDIR=../../../../../out \
               CONFIG_MALI_MIDGARD=m \
               CONFIG_MALI_CSF_SUPPORT=y \
               CONFIG_MALI_DEVFREQ=y \
               CONFIG_MALI_GATOR_SUPPORT=y \
               CONFIG_MALI_DEBUG=n \
+              KCFLAGS="-Wno-error -Wno-return-type -Wno-misleading-indentation -Wno-implicit-int -Wno-implicit-function-declaration -fno-sanitize=shadow-call-stack" \
               -j$(nproc)
           else
             echo "Mali driver not found!"
