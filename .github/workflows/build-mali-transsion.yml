@@ -48,10 +48,11 @@ jobs:
           which ld.lld
           which llvm-ar
 
-      - name: Clone kernel source (shallow)
+      - name: Clone kernel source (full, for submodules and build.sh)
         run: |
-          git clone --depth=1 --branch "${KERNEL_REF}" "${KERNEL_REPO}" kernel
+          git clone --branch "${KERNEL_REF}" "${KERNEL_REPO}" kernel
           cd kernel
+          git submodule update --init --recursive || echo "Submodule init failed, continuing..."
           echo "KERNEL_COMMIT=$(git rev-parse HEAD)" >> $GITHUB_ENV
 
       - name: Check Mali CSF config
@@ -79,14 +80,25 @@ jobs:
           cat build.config.gki.aarch64
           echo "================================="
 
-          # Try to download Android kernel build.sh from AOSP (correct path)
-          # First try kernel-build-tools repo with build/ subdir
-          curl -fsL -o build.sh https://raw.githubusercontent.com/google/kernel-build-tools/main/build/build.sh || \
-          curl -fsL -o build.sh https://raw.githubusercontent.com/google/kernel-build-tools/main/build.sh || \
-          { echo "Trying kernel source build.sh..."; ls -la build.sh 2>/dev/null || echo "No build.sh in kernel source"; }
+          # Check if build.sh exists in kernel source (full clone)
+          if [ -f build.sh ]; then
+            echo "Found build.sh in kernel source"
+            chmod +x build.sh
+          else
+            # Try to download Android kernel build.sh from AOSP
+            curl -fsL -o build.sh https://raw.githubusercontent.com/google/kernel-build-tools/main/build/build.sh || \
+            curl -fsL -o build.sh https://raw.githubusercontent.com/google/kernel-build-tools/main/build.sh || \
+            echo "No build.sh downloaded"
+          fi
+
+          # Handle KernelSU Kconfig issue - disable if not present
+          if [ ! -d "drivers/kernelsu" ]; then
+            echo "KernelSU not found, disabling in Kconfig..."
+            sed -i '/source "drivers\/kernelsu\/Kconfig"/d' drivers/Kconfig || true
+          fi
 
           if [ -f build.sh ] && [ -s build.sh ] && head -1 build.sh | grep -q "^#!"; then
-            chmod +x build.sh
+            echo "Using build.sh for GKI build"
             # Set up toolchain environment
             export ARCH=arm64
             export CC=clang
@@ -104,11 +116,33 @@ jobs:
             # Build kernel using GKI build config
             BUILD_CONFIG=build.config.gki.aarch64 ./build.sh
           else
-            echo "build.sh not found or invalid, using manual GKI build..."
-            # Manual GKI build using build.config
-            # Extract defconfig from build.config - handle various formats
-            DEFCONFIG=$(grep -E '^KERNEL_DEFCONFIG=' build.config.gki.aarch64 | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'" | xargs || echo "gki_defconfig")
-            EXTRA_CONFIGS=$(grep -E '^EXTRA_CONFIGS=' build.config.gki.aarch64 | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'" | xargs || echo "")
+            echo "build.sh not found or invalid, using manual GKI build by sourcing build.config chain..."
+            # Source the build.config chain to get defconfig
+            # build.config.gki.aarch64 sources: build.config.common, build.config.aarch64, build.config.gki
+            export ROOT_DIR=$(pwd)
+            export KERNEL_DIR=$(pwd)
+
+            # Source the build.config files in order
+            if [ -f "build.config.common" ]; then
+              source build.config.common
+            fi
+            if [ -f "build.config.aarch64" ]; then
+              source build.config.aarch64
+            fi
+            if [ -f "build.config.gki" ]; then
+              source build.config.gki
+            fi
+            # Now source the main config which may set GKI_DEFCONFIG_FRAGMENT
+            source build.config.gki.aarch64
+
+            # Get defconfig from GKI_DEFCONFIG_FRAGMENT or KERNEL_DEFCONFIG
+            if [ -n "${GKI_DEFCONFIG_FRAGMENT}" ] && [ -f "${GKI_DEFCONFIG_FRAGMENT}" ]; then
+              DEFCONFIG=$(grep -E '^KERNEL_DEFCONFIG=' "${GKI_DEFCONFIG_FRAGMENT}" | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'" | xargs || echo "gki_defconfig")
+            else
+              DEFCONFIG=$(grep -E '^KERNEL_DEFCONFIG=' build.config.gki 2>/dev/null | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'" | xargs || echo "gki_defconfig")
+            fi
+
+            EXTRA_CONFIGS=$(grep -E '^EXTRA_CONFIGS=' build.config.gki 2>/dev/null | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'" | xargs || echo "")
 
             echo "DEFCONFIG: '${DEFCONFIG}'"
             echo "EXTRA_CONFIGS: '${EXTRA_CONFIGS}'"
