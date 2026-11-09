@@ -73,27 +73,58 @@ jobs:
       - name: Build kernel (GKI style)
         run: |
           cd kernel
-          # Download Android kernel build.sh from AOSP
-          # This is the proper way to build GKI kernels with build.config files
-          curl -sL -o build.sh https://raw.githubusercontent.com/google/kernel-build-tools/main/build.sh
-          chmod +x build.sh
+          # Try to download Android kernel build.sh from AOSP (correct path)
+          # First try kernel-build-tools repo with build/ subdir
+          curl -fsL -o build.sh https://raw.githubusercontent.com/google/kernel-build-tools/main/build/build.sh || \
+          curl -fsL -o build.sh https://raw.githubusercontent.com/google/kernel-build-tools/main/build.sh || \
+          { echo "Trying kernel source build.sh..."; ls -la build.sh 2>/dev/null || echo "No build.sh in kernel source"; }
 
-          # Set up toolchain environment
-          export ARCH=arm64
-          export CC=clang
-          export LD=ld.lld
-          export AR=llvm-ar
-          export NM=llvm-nm
-          export OBJCOPY=llvm-objcopy
-          export OBJDUMP=llvm-objdump
-          export READELF=llvm-readelf
-          export STRIP=llvm-strip
-          export CROSS_COMPILE=aarch64-linux-gnu-
-          export CROSS_COMPILE_ARM32=arm-linux-gnueabi-
-          export CLANG_TRIPLE=aarch64-linux-gnu-
+          if [ -f build.sh ] && [ -s build.sh ] && head -1 build.sh | grep -q "^#!"; then
+            chmod +x build.sh
+            # Set up toolchain environment
+            export ARCH=arm64
+            export CC=clang
+            export LD=ld.lld
+            export AR=llvm-ar
+            export NM=llvm-nm
+            export OBJCOPY=llvm-objcopy
+            export OBJDUMP=llvm-objdump
+            export READELF=llvm-readelf
+            export STRIP=llvm-strip
+            export CROSS_COMPILE=aarch64-linux-gnu-
+            export CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+            export CLANG_TRIPLE=aarch64-linux-gnu-
 
-          # Build kernel using GKI build config
-          BUILD_CONFIG=build.config.gki.aarch64 ./build.sh
+            # Build kernel using GKI build config
+            BUILD_CONFIG=build.config.gki.aarch64 ./build.sh
+          else
+            echo "build.sh not found or invalid, using manual GKI build..."
+            # Manual GKI build using build.config
+            # Extract defconfig from build.config
+            DEFCONFIG=$(grep -E '^KERNEL_DEFCONFIG=' build.config.gki.aarch64 | cut -d= -f2 | tr -d '"' || echo "gki_defconfig")
+            EXTRA_CONFIGS=$(grep -E '^EXTRA_CONFIGS=' build.config.gki.aarch64 | cut -d= -f2 | tr -d '"' || echo "")
+
+            export ARCH=arm64
+            export CC=clang
+            export LD=ld.lld
+            export AR=llvm-ar
+            export NM=llvm-nm
+            export OBJCOPY=llvm-objcopy
+            export OBJDUMP=llvm-objdump
+            export READELF=llvm-readelf
+            export STRIP=llvm-strip
+            export CROSS_COMPILE=aarch64-linux-gnu-
+            export CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+            export CLANG_TRIPLE=aarch64-linux-gnu-
+
+            make O=out ${DEFCONFIG}
+            if [ -n "${EXTRA_CONFIGS}" ]; then
+              for config in ${EXTRA_CONFIGS}; do
+                scripts/kconfig/merge_config.sh -m -O out out/.config ${config}
+              done
+            fi
+            make O=out -j$(nproc)
+          fi
 
           # Build modules
           make O=out modules -j$(nproc)
