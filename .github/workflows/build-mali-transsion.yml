@@ -120,7 +120,7 @@ jobs:
             export CROSS_COMPILE_ARM32=arm-linux-gnueabi-
             export CLANG_TRIPLE=aarch64-linux-gnu-
             # Disable Werror for compatibility with newer clang (Ubuntu 26.04)
-            export KCFLAGS="-Wno-error -Wno-return-type -Wno-misleading-indentation"
+            export KCFLAGS="-Wno-error -Wno-return-type -Wno-misleading-indentation -Wno-implicit-int -Wno-implicit-function-declaration"
 
             # Build kernel using GKI build config
             BUILD_CONFIG=build.config.gki.aarch64 ./build.sh
@@ -201,11 +201,11 @@ jobs:
             # Use MAKE_GOALS from build.config to skip dtbs (which has a DTS bug in qcom ipq8074-hk01.dts)
             # Disable Werror for compatibility with newer clang (Ubuntu 26.04)
             # Also disable specific warnings that cause errors in this kernel
-            make O=out KCFLAGS="-Wno-error -Wno-return-type -Wno-misleading-indentation" ${MAKE_GOALS} -j$(nproc)
+            make O=out KCFLAGS="-Wno-error -Wno-return-type -Wno-misleading-indentation -Wno-implicit-int -Wno-implicit-function-declaration" ${MAKE_GOALS} -j$(nproc)
           fi
 
           # Build modules
-          make O=out KCFLAGS="-Wno-error -Wno-return-type -Wno-misleading-indentation" modules -j$(nproc)
+          make O=out KCFLAGS="-Wno-error -Wno-return-type -Wno-misleading-indentation -Wno-implicit-int -Wno-implicit-function-declaration" modules -j$(nproc)
 
       - name: Build Mali module with CSF
         run: |
