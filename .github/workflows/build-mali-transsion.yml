@@ -136,6 +136,10 @@ jobs:
             # Now source the main config which may set GKI_DEFCONFIG_FRAGMENT
             source build.config.gki.aarch64
 
+            # Ensure MAKE_GOALS is set (fallback to Image.lz4 if not defined by build config)
+            # This skips dtbs which has a DTS bug in qcom ipq8074-hk01.dts
+            MAKE_GOALS="${MAKE_GOALS:-Image.lz4}"
+
             # Get defconfig from GKI_DEFCONFIG_FRAGMENT or KERNEL_DEFCONFIG
             if [ -n "${GKI_DEFCONFIG_FRAGMENT}" ] && [ -f "${GKI_DEFCONFIG_FRAGMENT}" ]; then
               DEFCONFIG=$(grep -E '^KERNEL_DEFCONFIG=' "${GKI_DEFCONFIG_FRAGMENT}" | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'" | xargs || echo "gki_defconfig")
@@ -185,7 +189,8 @@ jobs:
                 fi
               done
             fi
-            make O=out -j$(nproc)
+            # Use MAKE_GOALS from build.config to skip dtbs (which has a DTS bug in qcom ipq8074-hk01.dts)
+            make O=out ${MAKE_GOALS} -j$(nproc)
           fi
 
           # Build modules
