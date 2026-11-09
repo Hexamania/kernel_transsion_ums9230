@@ -1,4 +1,4 @@
-name: Build Mali CSF Module (Transsion UMS9230)
+name: Build Mali CSF Module (Transsion UMS9230 GKI)
 
 on:
   workflow_dispatch:
@@ -14,17 +14,8 @@ on:
         default: true
         type: boolean
 
-  push:
-    branches: [main, master]
-    paths:
-      - '.github/workflows/build-mali-transsion.yml'
-      - 'build/**'
-
-  schedule:
-    - cron: '0 2 * * 0'  # Weekly Sunday 2 AM
-
 permissions:
-  contents: read
+  contents: write
   actions: write
 
 jobs:
@@ -44,15 +35,14 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          # Ubuntu 26.04 has clang-18 by default
           sudo apt-get install -y --no-install-recommends \
             build-essential clang lld llvm \
             libssl-dev bc flex bison libelf-dev dwarves \
-            python3 git wget cpio kmod ccache
+            python3 git wget cpio kmod ccache \
+            python3-pyelftools libncurses5-dev
 
       - name: Setup clang
         run: |
-          # Use system clang (clang-18 on Ubuntu 26.04)
           clang --version
           which ld.lld
           which llvm-ar
@@ -67,26 +57,58 @@ jobs:
         run: |
           cd kernel
           echo "=== Mali configs ==="
-          grep -r "CONFIG_MALI" arch/arm64/configs/ | head -20 || true
+          grep -r "CONFIG_MALI" arch/arm64/configs/ 2>/dev/null | head -20 || true
           grep -r "CONFIG_MALI_CSF_SUPPORT" . || echo "CSF config not found"
 
       - name: Apply ARM Mali driver (BX304L01B-r44p1)
         if: ${{ env.ENABLE_CSF == 'true' }}
         run: |
           cd kernel
-          # Copy ARM official driver if not present
           if [ ! -d "kernel_modules/kernel5.4/gpu/gondul/mali_new" ]; then
             mkdir -p kernel_modules/kernel5.4/gpu/gondul
             cp -r ${{ github.workspace }}/drivers/mali/arm-official \
               kernel_modules/kernel5.4/gpu/gondul/mali_new
           fi
 
-      - name: Build kernel
+      - name: Build kernel (GKI style)
         run: |
           cd kernel
-          source setup.env
-          ./build.sh config-dev
-          ./build.sh compile
+          # Use build.config.gki.aarch64 for Transsion UMS9230
+          # This is a GKI kernel - use standard Android kernel build
+          cat > build_gki.sh << 'EOF'
+          #!/bin/bash
+          set -e
+
+          # Use the GKI build config for Transsion
+          BUILD_CONFIG=build.config.gki.aarch64
+
+          # Set up toolchain
+          export ARCH=arm64
+          export CC=clang
+          export LD=ld.lld
+          export AR=llvm-ar
+          export NM=llvm-nm
+          export OBJCOPY=llvm-objcopy
+          export OBJDUMP=llvm-objdump
+          export READELF=llvm-readelf
+          export STRIP=llvm-strip
+          export CROSS_COMPILE=aarch64-linux-gnu-
+          export CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+          export CLANG_TRIPLE=aarch64-linux-gnu-
+
+          # Use the build.config
+          if [ -f "${BUILD_CONFIG}" ]; then
+            source "${BUILD_CONFIG}"
+          fi
+
+          # Build kernel
+          make O=out ${MAKE_GOALS} -j$(nproc)
+
+          # Build modules
+          make O=out modules -j$(nproc)
+          EOF
+          chmod +x build_gki.sh
+          ./build_gki.sh
 
       - name: Build Mali module with CSF
         run: |
@@ -128,7 +150,7 @@ jobs:
           echo "CSF enabled: ${ENABLE_CSF}" >> build-info.txt
           echo "Build date: $(date -u)" >> build-info.txt
           uname -a >> build-info.txt
-          echo "Module size: $(ls -lh **/mali_kbase.ko | awk '{print $5}')" >> build-info.txt
+          echo "Module size: $(ls -lh **/mali_kbase.ko 2>/dev/null | awk '{print $5}' | head -1)" >> build-info.txt
           cat build-info.txt
 
       - name: Upload build info
