@@ -101,6 +101,30 @@ jobs:
           fi
           ls -la kernel_modules/kernel5.4/gpu/gondul/mali_new/
 
+      - name: Copy CSF headers to ARM Mali driver
+        if: ${{ env.ENABLE_CSF == 'true' }}
+        run: |
+          cd kernel
+          MALI_DIR="kernel_modules/kernel5.4/gpu/gondul/mali_new"
+          if [ -d "$MALI_DIR" ]; then
+            echo "=== Copying CSF headers to ARM Mali driver ==="
+            # The CSF headers are in the existing gondul_mali driver source
+            # Need to copy them to base/csf/ to match #include <csf/mali_base_csf_kernel.h>
+            if [ -d "${{ github.workspace }}/driver/gondul_mali/csf" ]; then
+              mkdir -p "$MALI_DIR/base/csf"
+              cp -r "${{ github.workspace }}/driver/gondul_mali/csf/"*.h "$MALI_DIR/base/csf/"
+              echo "CSF headers copied to $MALI_DIR/base/csf/"
+              ls -la "$MALI_DIR/base/csf/"
+            elif [ -d "${{ github.workspace }}/drivers/mali/gondul-rmx3511/csf" ]; then
+              mkdir -p "$MALI_DIR/base/csf"
+              cp -r "${{ github.workspace }}/drivers/mali/gondul-rmx3511/csf/"*.h "$MALI_DIR/base/csf/"
+              echo "CSF headers copied from gondul-rmx3511 to $MALI_DIR/base/csf/"
+              ls -la "$MALI_DIR/base/csf/"
+            else
+              echo "WARNING: CSF headers not found in workspace"
+            fi
+          fi
+
       - name: Handle KernelSU Kconfig (disable if missing)
         run: |
           cd kernel
