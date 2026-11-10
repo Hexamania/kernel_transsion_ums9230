@@ -324,6 +324,33 @@ jobs:
             else
               echo "WARNING: version_compat_defs.h not found in workspace"
             fi
+
+            # Copy ARM Mali UAPI headers to kernel source tree include/uapi/
+            # The kernel build system for external modules (make O=out M=...) looks for
+            # UAPI headers in the kernel source tree's include/uapi/ directory
+            # The Mali driver uses: #include <uapi/gpu/arm/midgard/...> and #include <uapi/gpu/arm/midgard/gpu/...>
+            echo "=== Copying ARM Mali UAPI headers to kernel source tree include/uapi/ ==="
+            mkdir -p include/uapi/gpu/arm/midgard
+            mkdir -p include/uapi/gpu/arm/midgard/gpu
+            # Copy from base/uapi/gpu/arm/midgard/
+            if [ -d "$MALI_DIR/base/uapi/gpu/arm/midgard" ]; then
+              cp -r "$MALI_DIR/base/uapi/gpu/arm/midgard/"* include/uapi/gpu/arm/midgard/
+              echo "Copied base/uapi headers to include/uapi/"
+            fi
+            # Copy from include/uapi/gpu/arm/midgard/
+            if [ -d "$MALI_DIR/include/uapi/gpu/arm/midgard" ]; then
+              cp -r "$MALI_DIR/include/uapi/gpu/arm/midgard/"* include/uapi/gpu/arm/midgard/
+              echo "Copied include/uapi headers to include/uapi/"
+            fi
+            # Copy from midgard/gpu/ (GPU-specific headers like mali_kbase_gpu_regmap.h)
+            # These are included as <uapi/gpu/arm/midgard/gpu/...>
+            if [ -d "$MALI_DIR/midgard/gpu" ]; then
+              cp -r "$MALI_DIR/midgard/gpu/"*.h include/uapi/gpu/arm/midgard/gpu/
+              echo "Copied midgard/gpu headers to include/uapi/"
+            fi
+            echo "UAPI headers installed to include/uapi/gpu/arm/midgard/"
+            ls -la include/uapi/gpu/arm/midgard/
+            ls -la include/uapi/gpu/arm/midgard/gpu/ 2>/dev/null || true
           else
             echo "WARNING: Mali driver not found at $MALI_DIR, skipping UAPI header copy"
           fi
