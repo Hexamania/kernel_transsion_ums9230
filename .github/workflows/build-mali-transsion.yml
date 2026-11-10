@@ -301,8 +301,16 @@ jobs:
               cp -r "$MALI_DIR/include/uapi/gpu/arm/midgard/"* out/usr/include/uapi/gpu/arm/midgard/
               echo "Copied include/uapi headers"
             fi
+            # Copy from midgard/gpu/ (GPU-specific headers like mali_kbase_gpu_regmap.h)
+            # These are included as <uapi/gpu/arm/midgard/gpu/...>
+            if [ -d "$MALI_DIR/midgard/gpu" ]; then
+              mkdir -p out/usr/include/uapi/gpu/arm/midgard/gpu
+              cp -r "$MALI_DIR/midgard/gpu/"*.h out/usr/include/uapi/gpu/arm/midgard/gpu/
+              echo "Copied midgard/gpu headers"
+            fi
             echo "UAPI headers installed to out/usr/include/uapi/gpu/arm/midgard/"
             ls -la out/usr/include/uapi/gpu/arm/midgard/
+            ls -la out/usr/include/uapi/gpu/arm/midgard/gpu/ 2>/dev/null || true
             # Copy ARM Mali version_compat_defs.h to kernel source tree include/linux
             # The Mali driver includes: #include <linux/version_compat_defs.h>
             # This is an ARM compatibility header from the Mali driver source
