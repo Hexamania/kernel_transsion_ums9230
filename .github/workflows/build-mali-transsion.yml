@@ -303,7 +303,7 @@ jobs:
               CONFIG_MALI_GATOR_SUPPORT=y \
               CONFIG_MALI_DEBUG=n \
               CONFIG_MALI_PLATFORM_NAME="devicetree" \
-              KCFLAGS="-Wno-error -Wno-return-type -Wno-misleading-indentation -Wno-implicit-int -Wno-implicit-function-declaration -fno-sanitize=shadow-call-stack -I$MALI_DIR/base/uapi -I$MALI_DIR/include/uapi" \
+              KCFLAGS="-Wno-error -Wno-return-type -Wno-misleading-indentation -Wno-implicit-int -Wno-implicit-function-declaration -fno-sanitize=shadow-call-stack -I$MALI_DIR/base -I$MALI_DIR/include" \
               -j$(nproc) modules
 
             echo "Mali module build completed"
