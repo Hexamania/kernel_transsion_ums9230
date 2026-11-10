@@ -401,6 +401,24 @@ jobs:
               ls -la include/uapi/gpu/arm/midgard/csf/
             fi
 
+            # Copy CSF UAPI headers from kernel's driver source (authoritative source)
+            # The kernel's driver source at driver/product/kernel/include/uapi/ has the correct CSF headers
+            if [ -d "${{ github.workspace }}/driver/product/kernel/include/uapi/gpu/arm/midgard/csf" ]; then
+              echo "=== Copying CSF UAPI headers from kernel driver source ==="
+              mkdir -p include/uapi/gpu/arm/midgard/csf
+              cp -r "${{ github.workspace }}/driver/product/kernel/include/uapi/gpu/arm/midgard/csf/"*.h include/uapi/gpu/arm/midgard/csf/
+              echo "Copied CSF UAPI headers from kernel driver source"
+              ls -la include/uapi/gpu/arm/midgard/csf/
+            fi
+
+            # Copy mali_kbase_ioctl.h from kernel driver source
+            if [ -f "${{ github.workspace }}/driver/product/kernel/include/uapi/gpu/arm/midgard/mali_kbase_ioctl.h" ]; then
+              echo "=== Copying mali_kbase_ioctl.h from kernel driver source ==="
+              cp "${{ github.workspace }}/driver/product/kernel/include/uapi/gpu/arm/midgard/mali_kbase_ioctl.h" include/uapi/gpu/arm/midgard/
+              echo "Copied mali_kbase_ioctl.h"
+              ls -la include/uapi/gpu/arm/midgard/mali_kbase_ioctl.h
+            fi
+
             echo "UAPI headers installed to include/uapi/gpu/arm/midgard/"
             ls -la include/uapi/gpu/arm/midgard/
             ls -la include/uapi/gpu/arm/midgard/gpu/ 2>/dev/null || true
