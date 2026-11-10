@@ -293,6 +293,7 @@ jobs:
             # Build external module from kernel source tree using M= parameter
             # This uses the kernel source tree (which has all headers) with O=out for output
             # Must explicitly pass ARCH and CROSS_COMPILE since each step runs in separate shell
+            # Add Mali driver's UAPI directories to include path for #include <uapi/gpu/arm/midgard/...>
             make O=out M="$MALI_DIR" \
               ARCH=arm64 \
               CROSS_COMPILE=aarch64-linux-gnu- \
@@ -302,7 +303,7 @@ jobs:
               CONFIG_MALI_GATOR_SUPPORT=y \
               CONFIG_MALI_DEBUG=n \
               CONFIG_MALI_PLATFORM_NAME="devicetree" \
-              KCFLAGS="-Wno-error -Wno-return-type -Wno-misleading-indentation -Wno-implicit-int -Wno-implicit-function-declaration -fno-sanitize=shadow-call-stack" \
+              KCFLAGS="-Wno-error -Wno-return-type -Wno-misleading-indentation -Wno-implicit-int -Wno-implicit-function-declaration -fno-sanitize=shadow-call-stack -I$MALI_DIR/base/uapi -I$MALI_DIR/include/uapi" \
               -j$(nproc) modules
 
             echo "Mali module build completed"
