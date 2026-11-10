@@ -91,9 +91,10 @@ jobs:
         run: |
           cd kernel
           if [ ! -d "kernel_modules/kernel5.4/gpu/gondul/mali_new" ]; then
-            mkdir -p kernel_modules/kernel5.4/gpu/gondul
-            cp -r ${{ github.workspace }}/drivers/mali/arm-official \
-              kernel_modules/kernel5.4/gpu/gondul/mali_new
+            mkdir -p kernel_modules/kernel5.4/gpu/gondul/mali_new
+            # Copy contents of arm-official directly to mali_new (not the directory itself)
+            cp -r ${{ github.workspace }}/drivers/mali/arm-official/. \
+              kernel_modules/kernel5.4/gpu/gondul/mali_new/
             echo "ARM Mali driver copied to kernel_modules/kernel5.4/gpu/gondul/mali_new"
           else
             echo "ARM Mali driver already present"
