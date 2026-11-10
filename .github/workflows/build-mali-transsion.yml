@@ -259,23 +259,25 @@ jobs:
           # Copy ARM Mali driver UAPI headers to kernel installed headers
           # The ARM Mali driver (BX304L01B-r44p1) has UAPI headers in base/uapi/ and include/uapi/
           # These need to be in the kernel's header installation path for the module build to find them
+          # Source includes use: #include <uapi/gpu/arm/midgard/mali_base_kernel.h>
+          # So headers must be installed at out/usr/include/uapi/gpu/arm/midgard/
           MALI_DIR="kernel_modules/kernel5.4/gpu/gondul/mali_new"
           if [ -d "$MALI_DIR" ]; then
             echo "=== Copying ARM Mali UAPI headers to kernel installed headers ==="
-            # Create the target directory
-            mkdir -p out/usr/include/gpu/arm/midgard
+            # Create the target directory (with uapi/ prefix to match #include <uapi/...>)
+            mkdir -p out/usr/include/uapi/gpu/arm/midgard
             # Copy from base/uapi/gpu/arm/midgard/
             if [ -d "$MALI_DIR/base/uapi/gpu/arm/midgard" ]; then
-              cp -r "$MALI_DIR/base/uapi/gpu/arm/midgard/"* out/usr/include/gpu/arm/midgard/
+              cp -r "$MALI_DIR/base/uapi/gpu/arm/midgard/"* out/usr/include/uapi/gpu/arm/midgard/
               echo "Copied base/uapi headers"
             fi
             # Copy from include/uapi/gpu/arm/midgard/
             if [ -d "$MALI_DIR/include/uapi/gpu/arm/midgard" ]; then
-              cp -r "$MALI_DIR/include/uapi/gpu/arm/midgard/"* out/usr/include/gpu/arm/midgard/
+              cp -r "$MALI_DIR/include/uapi/gpu/arm/midgard/"* out/usr/include/uapi/gpu/arm/midgard/
               echo "Copied include/uapi headers"
             fi
-            echo "UAPI headers installed to out/usr/include/gpu/arm/midgard/"
-            ls -la out/usr/include/gpu/arm/midgard/
+            echo "UAPI headers installed to out/usr/include/uapi/gpu/arm/midgard/"
+            ls -la out/usr/include/uapi/gpu/arm/midgard/
           else
             echo "WARNING: Mali driver not found at $MALI_DIR, skipping UAPI header copy"
           fi
