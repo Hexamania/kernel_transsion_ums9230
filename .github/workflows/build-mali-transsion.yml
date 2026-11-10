@@ -303,15 +303,16 @@ jobs:
             fi
             echo "UAPI headers installed to out/usr/include/uapi/gpu/arm/midgard/"
             ls -la out/usr/include/uapi/gpu/arm/midgard/
-            # Copy ARM Mali version_compat_defs.h to kernel installed headers
+            # Copy ARM Mali version_compat_defs.h to kernel source tree include/linux
             # The Mali driver includes: #include <linux/version_compat_defs.h>
             # This is an ARM compatibility header from the Mali driver source
-            echo "=== Copying ARM Mali version_compat_defs.h to kernel installed headers ==="
+            # The external module build (make O=out M=...) looks for headers in the kernel source tree
+            echo "=== Copying ARM Mali version_compat_defs.h to kernel source tree ==="
             if [ -f "${{ github.workspace }}/driver/product/kernel/include/linux/version_compat_defs.h" ]; then
-              mkdir -p out/usr/include/linux
-              cp "${{ github.workspace }}/driver/product/kernel/include/linux/version_compat_defs.h" out/usr/include/linux/
-              echo "Copied version_compat_defs.h to out/usr/include/linux/"
-              ls -la out/usr/include/linux/version_compat_defs.h
+              mkdir -p include/linux
+              cp "${{ github.workspace }}/driver/product/kernel/include/linux/version_compat_defs.h" include/linux/
+              echo "Copied version_compat_defs.h to include/linux/"
+              ls -la include/linux/version_compat_defs.h
             else
               echo "WARNING: version_compat_defs.h not found in workspace"
             fi
