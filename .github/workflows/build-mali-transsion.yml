@@ -361,9 +361,41 @@ jobs:
               cp -r "$MALI_DIR/midgard/gpu/"*.h include/uapi/gpu/arm/midgard/gpu/
               echo "Copied midgard/gpu headers to include/uapi/"
             fi
+
+            # Copy CSF UAPI headers from existing kernel Mali driver
+            # The kernel's existing Mali driver (at kernel_modules/kernel5.4/gpu/gondul/)
+            # may have CSF UAPI headers that the ARM Mali driver expects
+            EXISTING_MALI_DIR="kernel_modules/kernel5.4/gpu/gondul"
+            if [ -d "$EXISTING_MALI_DIR/midgard/csf" ]; then
+              mkdir -p include/uapi/gpu/arm/midgard/csf
+              # Look for UAPI headers in the existing driver's csf directory
+              find "$EXISTING_MALI_DIR/midgard/csf" -name "*.h" -path "*uapi*" 2>/dev/null | while read hdr; do
+                cp "$hdr" include/uapi/gpu/arm/midgard/csf/ 2>/dev/null || true
+              done
+              # Also check if there are any headers directly in midgard/csf that might be UAPI
+              # The ARM Mali driver expects headers at uapi/gpu/arm/midgard/csf/
+              if [ -d "$EXISTING_MALI_DIR/midgard/csf" ]; then
+                # Copy any header files that might be UAPI headers
+                cp "$EXISTING_MALI_DIR/midgard/csf/"*.h include/uapi/gpu/arm/midgard/csf/ 2>/dev/null || true
+              fi
+              if [ -d "$EXISTING_MALI_DIR/midgard/csf/ipa_control" ]; then
+                mkdir -p include/uapi/gpu/arm/midgard/csf/ipa_control
+                cp "$EXISTING_MALI_DIR/midgard/csf/ipa_control/"*.h include/uapi/gpu/arm/midgard/csf/ipa_control/ 2>/dev/null || true
+              fi
+              echo "Copied CSF UAPI headers from existing Mali driver"
+              ls -la include/uapi/gpu/arm/midgard/csf/ 2>/dev/null || true
+            fi
+
+            # Also check the kernel's own include/uapi for CSF headers
+            if [ -d "include/uapi/gpu/arm/midgard/csf" ]; then
+              echo "Kernel already has CSF UAPI headers at include/uapi/gpu/arm/midgard/csf/"
+              ls -la include/uapi/gpu/arm/midgard/csf/
+            fi
+
             echo "UAPI headers installed to include/uapi/gpu/arm/midgard/"
             ls -la include/uapi/gpu/arm/midgard/
             ls -la include/uapi/gpu/arm/midgard/gpu/ 2>/dev/null || true
+            ls -la include/uapi/gpu/arm/midgard/csf/ 2>/dev/null || true
           else
             echo "WARNING: Mali driver not found at $MALI_DIR, skipping UAPI header copy"
           fi
