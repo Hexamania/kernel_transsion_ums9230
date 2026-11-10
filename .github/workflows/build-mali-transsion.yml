@@ -308,9 +308,9 @@ jobs:
             # This is an ARM compatibility header from the Mali driver source
             # The external module build (make O=out M=...) looks for headers in the kernel source tree
             echo "=== Copying ARM Mali version_compat_defs.h to kernel source tree ==="
-            if [ -f "${{ github.workspace }}/driver/product/kernel/include/linux/version_compat_defs.h" ]; then
+            if [ -f "${{ github.workspace }}/drivers/mali/arm-official/include/linux/version_compat_defs.h" ]; then
               mkdir -p include/linux
-              cp "${{ github.workspace }}/driver/product/kernel/include/linux/version_compat_defs.h" include/linux/
+              cp "${{ github.workspace }}/drivers/mali/arm-official/include/linux/version_compat_defs.h" include/linux/
               echo "Copied version_compat_defs.h to include/linux/"
               ls -la include/linux/version_compat_defs.h
             else
