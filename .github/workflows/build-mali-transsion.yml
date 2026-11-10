@@ -34,6 +34,9 @@ jobs:
       KERNEL_REPO: https://github.com/Bocchi-The-Dev/kernel_transsion_ums9230.git
       KERNEL_REF: ${{ github.event.inputs.kernel_ref || 'master' }}
       ENABLE_CSF: ${{ github.event.inputs.enable_csf || 'true' }}
+    outputs:
+      kernel_commit: ${{ steps.get_commit.outputs.commit }}
+      module_path: ${{ steps.find_module.outputs.path }}
 
     steps:
       - name: Checkout build scripts
@@ -61,6 +64,12 @@ jobs:
           cd kernel
           git submodule update --init --recursive || echo "Submodule init failed, continuing..."
           echo "KERNEL_COMMIT=$(git rev-parse HEAD)" >> $GITHUB_ENV
+
+      - name: Set kernel commit output
+        id: get_commit
+        run: |
+          cd kernel
+          echo "commit=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
 
       - name: Check Mali CSF config
         run: |
@@ -217,6 +226,25 @@ jobs:
           cd kernel
           find . -name "mali_kbase.ko" -exec ls -lh {} \;
           find . -name "mali_kbase.ko" -exec file {} \;
+
+      - name: Verify CSF support in module
+        run: |
+          cd kernel
+          MODULE=$(find . -name "mali_kbase.ko" | head -1)
+          echo "=== Checking for CSF support in module ==="
+          # Check for CSF-related strings in the module
+          strings "$MODULE" | grep -i csf || echo "No CSF strings found (may be in firmware)"
+          # Check for CSF config in modinfo
+          modinfo "$MODULE" | grep -i csf || true
+          # Verify it's arm64
+          file "$MODULE" | grep -q "aarch64" && echo "Module is aarch64 ✓" || echo "WARNING: Module may not be aarch64"
+
+      - name: Find module path for output
+        id: find_module
+        run: |
+          cd kernel
+          MODULE_PATH=$(find . -name "mali_kbase.ko" | head -1)
+          echo "path=$MODULE_PATH" >> $GITHUB_OUTPUT
 
       - name: Upload mali_kbase.ko
         uses: actions/upload-artifact@v4
