@@ -266,7 +266,10 @@ jobs:
 
             # Build external module from kernel source tree using M= parameter
             # This uses the kernel source tree (which has all headers) with O=out for output
+            # Must explicitly pass ARCH and CROSS_COMPILE since each step runs in separate shell
             make O=out M="$MALI_DIR" \
+              ARCH=arm64 \
+              CROSS_COMPILE=aarch64-linux-gnu- \
               CONFIG_MALI_MIDGARD=m \
               CONFIG_MALI_CSF_SUPPORT=y \
               CONFIG_MALI_DEVFREQ=y \
