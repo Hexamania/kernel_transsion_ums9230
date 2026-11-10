@@ -362,6 +362,15 @@ jobs:
               echo "Copied midgard/gpu headers to include/uapi/"
             fi
 
+            # Copy CSF UAPI headers from ARM Mali driver
+            # The ARM Mali driver expects CSF UAPI headers at uapi/gpu/arm/midgard/csf/
+            # These are not included in the ARM driver source package, so we provide them
+            mkdir -p include/uapi/gpu/arm/midgard/csf
+            if [ -d "$MALI_DIR/include/uapi/gpu/arm/midgard/csf" ]; then
+              cp -r "$MALI_DIR/include/uapi/gpu/arm/midgard/csf/"*.h include/uapi/gpu/arm/midgard/csf/
+              echo "Copied ARM Mali CSF UAPI headers to include/uapi/"
+            fi
+
             # Copy CSF UAPI headers from existing kernel Mali driver
             # The kernel's existing Mali driver (at kernel_modules/kernel5.4/gpu/gondul/)
             # may have CSF UAPI headers that the ARM Mali driver expects
