@@ -6,7 +6,7 @@ on:
       kernel_ref:
         description: 'Kernel branch/tag/commit to build'
         required: false
-        default: 'master'
+        default: 'build-infra'
         type: string
       enable_csf:
         description: 'Enable CSF (Valhall) support'
@@ -33,7 +33,9 @@ jobs:
     timeout-minutes: 180
     env:
       KERNEL_REPO: https://github.com/Bocchi-The-Dev/kernel_transsion_ums9230.git
-      KERNEL_REF: ${{ github.event.inputs.kernel_ref || 'master' }}
+      # For push events, use the branch name from github.ref (e.g., refs/heads/build-infra -> build-infra)
+      # For workflow_dispatch, use the input (default: build-infra)
+      KERNEL_REF: ${{ github.event_name == 'push' && github.ref_name || github.event.inputs.kernel_ref || 'build-infra' }}
       ENABLE_CSF: ${{ github.event.inputs.enable_csf || 'true' }}
     outputs:
       kernel_commit: ${{ steps.get_commit.outputs.commit }}
