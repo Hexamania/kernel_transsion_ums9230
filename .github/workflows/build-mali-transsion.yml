@@ -274,8 +274,8 @@ jobs:
 
       - name: Checkout platform-tools for CSF UAPI headers
         run: |
-          # Clone platform-tools repo (same owner, GITHUB_TOKEN works)
-          git clone --depth 1 https://github.com/Hexamania/platform-tools.git platform-tools
+          # Clone platform-tools repo (same owner, use GITHUB_TOKEN for auth)
+          git clone --depth 1 https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/Hexamania/platform-tools.git platform-tools
           echo "Cloned platform-tools repo"
           ls -la platform-tools/driver/product/kernel/include/uapi/gpu/arm/midgard/ 2>/dev/null || echo "UAPI path not found"
 
