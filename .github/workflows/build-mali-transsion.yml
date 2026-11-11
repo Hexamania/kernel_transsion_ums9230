@@ -42,19 +42,22 @@ jobs:
       module_path: ${{ steps.find_module.outputs.path }}
 
     steps:
-      - name: Checkout kernel source (full, for submodules and build.config)
+      - name: Checkout kernel source from upstream (for build.config and full source)
         uses: actions/checkout@v4
         with:
-          repository: Hexamania/kernel_transsion_ums9230
-          ref: ${{ env.KERNEL_REF }}
+          repository: Bocchi-The-Dev/kernel_transsion_ums9230
+          ref: master
           path: kernel
-          # submodules: recursive - disabled due to submodule URL issues in fork
-          # Will initialize submodules manually
+          submodules: recursive
 
-      - name: Initialize kernel submodules
+      - name: Fetch Mali driver additions from fork
         run: |
           cd kernel
-          git submodule update --init --recursive || echo "Submodule init failed, continuing..."
+          # Add fork as remote to get drivers/mali and driver/ directories
+          git remote add fork https://github.com/Hexamania/kernel_transsion_ums9230.git
+          git fetch fork build-infra --depth=1
+          # Checkout drivers/mali and driver/ from fork's build-infra branch
+          git checkout fork/build-infra -- drivers/mali driver/product/kernel/include/uapi/gpu/arm/midgard driver/gondul_mali 2>/dev/null || echo "Some paths not found in fork, continuing..."
 
       - name: Set kernel commit output
         id: get_commit
