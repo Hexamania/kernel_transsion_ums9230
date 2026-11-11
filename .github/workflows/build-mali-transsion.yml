@@ -402,33 +402,60 @@ jobs:
               ls -la include/uapi/gpu/arm/midgard/csf/
             fi
 
-            # Copy CSF UAPI headers from current repo (platform-tools) - authoritative source
+            # Copy ALL UAPI headers from platform-tools driver source
             # The platform-tools repo has the kernel driver source with correct CSF headers
             PLATFORM_TOOLS_PATH="${{ github.workspace }}"
-            if [ -d "$PLATFORM_TOOLS_PATH/driver/product/kernel/include/uapi/gpu/arm/midgard/csf" ]; then
-              echo "=== Copying CSF UAPI headers from platform-tools driver source ==="
-              mkdir -p include/uapi/gpu/arm/midgard/csf
-              cp -r "$PLATFORM_TOOLS_PATH/driver/product/kernel/include/uapi/gpu/arm/midgard/csf/"*.h include/uapi/gpu/arm/midgard/csf/
-              echo "Copied CSF UAPI headers from platform-tools"
-              ls -la include/uapi/gpu/arm/midgard/csf/
-            else
-              echo "WARNING: platform-tools CSF headers not found at $PLATFORM_TOOLS_PATH/driver/product/kernel/include/uapi/gpu/arm/midgard/csf"
-            fi
+            UAPI_SRC="$PLATFORM_TOOLS_PATH/driver/product/kernel/include/uapi/gpu/arm/midgard"
+            UAPI_DST="include/uapi/gpu/arm/midgard"
 
-            # Copy mali_kbase_ioctl.h from platform-tools driver source
-            if [ -f "$PLATFORM_TOOLS_PATH/driver/product/kernel/include/uapi/gpu/arm/midgard/mali_kbase_ioctl.h" ]; then
-              echo "=== Copying mali_kbase_ioctl.h from platform-tools driver source ==="
-              cp "$PLATFORM_TOOLS_PATH/driver/product/kernel/include/uapi/gpu/arm/midgard/mali_kbase_ioctl.h" include/uapi/gpu/arm/midgard/
-              echo "Copied mali_kbase_ioctl.h"
-              ls -la include/uapi/gpu/arm/midgard/mali_kbase_ioctl.h
-            else
-              echo "WARNING: mali_kbase_ioctl.h not found in platform-tools"
-            fi
+            if [ -d "$UAPI_SRC" ]; then
+              echo "=== Copying UAPI headers from platform-tools driver source ==="
 
-            # NOTE: mali_base_common_kernel.h is NOT copied separately
-            # It is included by mali_base_kernel.h (which is already copied)
-            # The mali_base_csf_kernel.h includes it via relative path ../mali_base_common_kernel.h
-            # from the csf/ subdirectory, which works with the correct directory structure
+              # Copy mali_base_common_kernel.h (defines base_mem_handle, base_mem_alloc_flags, etc.)
+              if [ -f "$UAPI_SRC/mali_base_common_kernel.h" ]; then
+                echo "Copying mali_base_common_kernel.h"
+                cp "$UAPI_SRC/mali_base_common_kernel.h" "$UAPI_DST/"
+              fi
+
+              # Copy mali_base_mem_priv.h (includes mali_base_common_kernel.h, used by mali_base_kernel.h)
+              if [ -f "$UAPI_SRC/mali_base_mem_priv.h" ]; then
+                echo "Copying mali_base_mem_priv.h"
+                cp "$UAPI_SRC/mali_base_mem_priv.h" "$UAPI_DST/"
+              fi
+
+              # Copy mali_base_kernel.h (includes mali_base_mem_priv.h and CSF/JM headers)
+              if [ -f "$UAPI_SRC/mali_base_kernel.h" ]; then
+                echo "Copying mali_base_kernel.h"
+                cp "$UAPI_SRC/mali_base_kernel.h" "$UAPI_DST/"
+              fi
+
+              # Copy mali_kbase_ioctl.h
+              if [ -f "$UAPI_SRC/mali_kbase_ioctl.h" ]; then
+                echo "Copying mali_kbase_ioctl.h"
+                cp "$UAPI_SRC/mali_kbase_ioctl.h" "$UAPI_DST/"
+              fi
+
+              # Copy CSF headers directory
+              if [ -d "$UAPI_SRC/csf" ]; then
+                echo "Copying CSF UAPI headers"
+                mkdir -p "$UAPI_DST/csf"
+                cp "$UAPI_SRC/csf/"*.h "$UAPI_DST/csf/"
+              fi
+
+              # Copy GPU headers directory
+              if [ -d "$UAPI_SRC/gpu" ]; then
+                echo "Copying GPU UAPI headers"
+                mkdir -p "$UAPI_DST/gpu"
+                cp "$UAPI_SRC/gpu/"*.h "$UAPI_DST/gpu/"
+              fi
+
+              echo "Copied all UAPI headers from platform-tools"
+              ls -la "$UAPI_DST/"
+              ls -la "$UAPI_DST/csf/" 2>/dev/null || true
+              ls -la "$UAPI_DST/gpu/" 2>/dev/null || true
+            else
+              echo "WARNING: platform-tools UAPI headers not found at $UAPI_SRC"
+            fi
 
             echo "UAPI headers installed to include/uapi/gpu/arm/midgard/"
             ls -la include/uapi/gpu/arm/midgard/
