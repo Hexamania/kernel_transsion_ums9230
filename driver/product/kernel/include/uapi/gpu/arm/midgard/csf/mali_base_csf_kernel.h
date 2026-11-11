@@ -23,7 +23,9 @@
 #define _UAPI_BASE_CSF_KERNEL_H_
 
 #include <linux/types.h>
-#include "../mali_base_common_kernel.h"
+/* mali_base_common_kernel.h is already included via mali_base_mem_priv.h
+ * which is included by mali_base_kernel.h before this file.
+ * Including it again here causes redefinition errors. */
 
 /* Memory allocation, access/hint flags & mask specific to CSF GPU.
  *
