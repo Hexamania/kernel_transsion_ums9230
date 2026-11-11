@@ -271,13 +271,6 @@ jobs:
           ls -la out/arch/arm64/boot/Image.lz4 2>/dev/null || echo "Image.lz4 not found"
           ls -la out/Module.symvers 2>/dev/null || echo "Module.symvers not found"
 
-      - name: Checkout platform-tools for CSF UAPI headers
-        run: |
-          # Use GitHub token to clone private repo
-          git clone --branch build-infra https://${{ secrets.GITHUB_TOKEN }}@github.com/Bocchi-The-Dev/platform-tools.git platform-tools
-          echo "Platform-tools cloned"
-          ls -la platform-tools/driver/product/kernel/include/uapi/gpu/arm/midgard/csf/
-
       - name: Install kernel headers (arm64) for external module build
         run: |
           cd kernel
@@ -408,9 +401,9 @@ jobs:
               ls -la include/uapi/gpu/arm/midgard/csf/
             fi
 
-            # Copy CSF UAPI headers from platform-tools repo (authoritative source)
+            # Copy CSF UAPI headers from current repo (platform-tools) - authoritative source
             # The platform-tools repo has the kernel driver source with correct CSF headers
-            PLATFORM_TOOLS_PATH="${{ github.workspace }}/../platform-tools"
+            PLATFORM_TOOLS_PATH="${{ github.workspace }}"
             if [ -d "$PLATFORM_TOOLS_PATH/driver/product/kernel/include/uapi/gpu/arm/midgard/csf" ]; then
               echo "=== Copying CSF UAPI headers from platform-tools driver source ==="
               mkdir -p include/uapi/gpu/arm/midgard/csf
