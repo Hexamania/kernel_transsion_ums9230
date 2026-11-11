@@ -480,28 +480,51 @@ jobs:
               echo "=== out/usr/include/uapi ==="
               ls -la "$OUT_USR_UAPI_DST/" 2>/dev/null || true
 
-              # Also copy to Mali driver's own UAPI directory (gondul/include/uapi/gpu/arm/midgard/)
-              # The Mali driver includes UAPI headers via relative path: ../include/uapi/gpu/arm/midgard/
-              # which resolves to kernel_modules/kernel5.4/gpu/gondul/include/uapi/gpu/arm/midgard/
-              MALI_UAPI_DST="$MALI_DIR/../include/uapi/gpu/arm/midgard"
-              if [ -d "$MALI_UAPI_DST" ] || mkdir -p "$MALI_UAPI_DST"; then
-                echo "=== Copying UAPI headers to Mali driver's source tree ==="
-                cp -f "$UAPI_SRC/mali_base_common_kernel.h" "$MALI_UAPI_DST/" 2>/dev/null || true
-                cp -f "$UAPI_SRC/mali_base_mem_priv.h" "$MALI_UAPI_DST/" 2>/dev/null || true
-                cp -f "$UAPI_SRC/mali_base_kernel.h" "$MALI_UAPI_DST/" 2>/dev/null || true
-                cp -f "$UAPI_SRC/mali_kbase_ioctl.h" "$MALI_UAPI_DST/" 2>/dev/null || true
+              # Also copy to Mali driver's gondul UAPI directory (kernel_modules/kernel5.4/gpu/gondul/include/uapi/gpu/arm/midgard/)
+              # This is for any includes that resolve to the parent gondul directory
+              MALI_UAPI_DST_GONDUL="$MALI_DIR/../include/uapi/gpu/arm/midgard"
+              if [ -d "$MALI_UAPI_DST_GONDUL" ] || mkdir -p "$MALI_UAPI_DST_GONDUL"; then
+                echo "=== Copying UAPI headers to Mali driver's gondul UAPI directory ==="
+                cp -f "$UAPI_SRC/mali_base_common_kernel.h" "$MALI_UAPI_DST_GONDUL/" 2>/dev/null || true
+                cp -f "$UAPI_SRC/mali_base_mem_priv.h" "$MALI_UAPI_DST_GONDUL/" 2>/dev/null || true
+                cp -f "$UAPI_SRC/mali_base_kernel.h" "$MALI_UAPI_DST_GONDUL/" 2>/dev/null || true
+                cp -f "$UAPI_SRC/mali_kbase_ioctl.h" "$MALI_UAPI_DST_GONDUL/" 2>/dev/null || true
                 if [ -d "$UAPI_SRC/csf" ]; then
-                  mkdir -p "$MALI_UAPI_DST/csf"
-                  cp -f "$UAPI_SRC/csf/"*.h "$MALI_UAPI_DST/csf/" 2>/dev/null || true
+                  mkdir -p "$MALI_UAPI_DST_GONDUL/csf"
+                  cp -f "$UAPI_SRC/csf/"*.h "$MALI_UAPI_DST_GONDUL/csf/" 2>/dev/null || true
                 fi
                 if [ -d "$UAPI_SRC/gpu" ]; then
-                  mkdir -p "$MALI_UAPI_DST/gpu"
-                  cp -f "$UAPI_SRC/gpu/"*.h "$MALI_UAPI_DST/gpu/" 2>/dev/null || true
+                  mkdir -p "$MALI_UAPI_DST_GONDUL/gpu"
+                  cp -f "$UAPI_SRC/gpu/"*.h "$MALI_UAPI_DST_GONDUL/gpu/" 2>/dev/null || true
                 fi
-                echo "Copied UAPI headers to Mali driver's UAPI directory"
-                ls -la "$MALI_UAPI_DST/"
-                ls -la "$MALI_UAPI_DST/csf/" 2>/dev/null || true
-                ls -la "$MALI_UAPI_DST/gpu/" 2>/dev/null || true
+                echo "Copied UAPI headers to Mali driver's gondul UAPI directory"
+                ls -la "$MALI_UAPI_DST_GONDUL/"
+                ls -la "$MALI_UAPI_DST_GONDUL/csf/" 2>/dev/null || true
+                ls -la "$MALI_UAPI_DST_GONDUL/gpu/" 2>/dev/null || true
+              fi
+
+              # Also copy to Mali driver's mali_new UAPI directory (kernel_modules/kernel5.4/gpu/gondul/mali_new/include/uapi/gpu/arm/midgard/)
+              # The Mali driver's mali_kbase.h includes: #include "../include/uapi/gpu/arm/midgard/mali_base_kernel.h"
+              # From mali_new/midgard/, ../include/uapi/ resolves to mali_new/include/uapi/
+              MALI_UAPI_DST_MALI_NEW="$MALI_DIR/include/uapi/gpu/arm/midgard"
+              if [ -d "$MALI_UAPI_DST_MALI_NEW" ] || mkdir -p "$MALI_UAPI_DST_MALI_NEW"; then
+                echo "=== Copying UAPI headers to Mali driver's mali_new UAPI directory ==="
+                cp -f "$UAPI_SRC/mali_base_common_kernel.h" "$MALI_UAPI_DST_MALI_NEW/" 2>/dev/null || true
+                cp -f "$UAPI_SRC/mali_base_mem_priv.h" "$MALI_UAPI_DST_MALI_NEW/" 2>/dev/null || true
+                cp -f "$UAPI_SRC/mali_base_kernel.h" "$MALI_UAPI_DST_MALI_NEW/" 2>/dev/null || true
+                cp -f "$UAPI_SRC/mali_kbase_ioctl.h" "$MALI_UAPI_DST_MALI_NEW/" 2>/dev/null || true
+                if [ -d "$UAPI_SRC/csf" ]; then
+                  mkdir -p "$MALI_UAPI_DST_MALI_NEW/csf"
+                  cp -f "$UAPI_SRC/csf/"*.h "$MALI_UAPI_DST_MALI_NEW/csf/" 2>/dev/null || true
+                fi
+                if [ -d "$UAPI_SRC/gpu" ]; then
+                  mkdir -p "$MALI_UAPI_DST_MALI_NEW/gpu"
+                  cp -f "$UAPI_SRC/gpu/"*.h "$MALI_UAPI_DST_MALI_NEW/gpu/" 2>/dev/null || true
+                fi
+                echo "Copied UAPI headers to Mali driver's mali_new UAPI directory"
+                ls -la "$MALI_UAPI_DST_MALI_NEW/"
+                ls -la "$MALI_UAPI_DST_MALI_NEW/csf/" 2>/dev/null || true
+                ls -la "$MALI_UAPI_DST_MALI_NEW/gpu/" 2>/dev/null || true
               fi
             else
               echo "WARNING: platform-tools UAPI headers not found at $UAPI_SRC"
