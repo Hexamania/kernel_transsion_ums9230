@@ -273,7 +273,8 @@ jobs:
 
       - name: Checkout platform-tools for CSF UAPI headers
         run: |
-          git clone --branch build-infra https://github.com/Bocchi-The-Dev/platform-tools.git platform-tools
+          # Use GitHub token to clone private repo
+          git clone --branch build-infra https://${{ secrets.GITHUB_TOKEN }}@github.com/Bocchi-The-Dev/platform-tools.git platform-tools
           echo "Platform-tools cloned"
           ls -la platform-tools/driver/product/kernel/include/uapi/gpu/arm/midgard/csf/
 
