@@ -271,6 +271,12 @@ jobs:
           ls -la out/arch/arm64/boot/Image.lz4 2>/dev/null || echo "Image.lz4 not found"
           ls -la out/Module.symvers 2>/dev/null || echo "Module.symvers not found"
 
+      - name: Checkout platform-tools for CSF UAPI headers
+        run: |
+          git clone --branch build-infra https://github.com/Bocchi-The-Dev/platform-tools.git platform-tools
+          echo "Platform-tools cloned"
+          ls -la platform-tools/driver/product/kernel/include/uapi/gpu/arm/midgard/csf/
+
       - name: Install kernel headers (arm64) for external module build
         run: |
           cd kernel
@@ -401,22 +407,27 @@ jobs:
               ls -la include/uapi/gpu/arm/midgard/csf/
             fi
 
-            # Copy CSF UAPI headers from kernel's driver source (authoritative source)
-            # The kernel's driver source at driver/product/kernel/include/uapi/ has the correct CSF headers
-            if [ -d "${{ github.workspace }}/driver/product/kernel/include/uapi/gpu/arm/midgard/csf" ]; then
-              echo "=== Copying CSF UAPI headers from kernel driver source ==="
+            # Copy CSF UAPI headers from platform-tools repo (authoritative source)
+            # The platform-tools repo has the kernel driver source with correct CSF headers
+            PLATFORM_TOOLS_PATH="${{ github.workspace }}/../platform-tools"
+            if [ -d "$PLATFORM_TOOLS_PATH/driver/product/kernel/include/uapi/gpu/arm/midgard/csf" ]; then
+              echo "=== Copying CSF UAPI headers from platform-tools driver source ==="
               mkdir -p include/uapi/gpu/arm/midgard/csf
-              cp -r "${{ github.workspace }}/driver/product/kernel/include/uapi/gpu/arm/midgard/csf/"*.h include/uapi/gpu/arm/midgard/csf/
-              echo "Copied CSF UAPI headers from kernel driver source"
+              cp -r "$PLATFORM_TOOLS_PATH/driver/product/kernel/include/uapi/gpu/arm/midgard/csf/"*.h include/uapi/gpu/arm/midgard/csf/
+              echo "Copied CSF UAPI headers from platform-tools"
               ls -la include/uapi/gpu/arm/midgard/csf/
+            else
+              echo "WARNING: platform-tools CSF headers not found at $PLATFORM_TOOLS_PATH/driver/product/kernel/include/uapi/gpu/arm/midgard/csf"
             fi
 
-            # Copy mali_kbase_ioctl.h from kernel driver source
-            if [ -f "${{ github.workspace }}/driver/product/kernel/include/uapi/gpu/arm/midgard/mali_kbase_ioctl.h" ]; then
-              echo "=== Copying mali_kbase_ioctl.h from kernel driver source ==="
-              cp "${{ github.workspace }}/driver/product/kernel/include/uapi/gpu/arm/midgard/mali_kbase_ioctl.h" include/uapi/gpu/arm/midgard/
+            # Copy mali_kbase_ioctl.h from platform-tools driver source
+            if [ -f "$PLATFORM_TOOLS_PATH/driver/product/kernel/include/uapi/gpu/arm/midgard/mali_kbase_ioctl.h" ]; then
+              echo "=== Copying mali_kbase_ioctl.h from platform-tools driver source ==="
+              cp "$PLATFORM_TOOLS_PATH/driver/product/kernel/include/uapi/gpu/arm/midgard/mali_kbase_ioctl.h" include/uapi/gpu/arm/midgard/
               echo "Copied mali_kbase_ioctl.h"
               ls -la include/uapi/gpu/arm/midgard/mali_kbase_ioctl.h
+            else
+              echo "WARNING: mali_kbase_ioctl.h not found in platform-tools"
             fi
 
             echo "UAPI headers installed to include/uapi/gpu/arm/midgard/"
