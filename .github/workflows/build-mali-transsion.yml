@@ -40,17 +40,10 @@ jobs:
       module_path: ${{ steps.find_module.outputs.path }}
 
     steps:
-      - name: Checkout platform-tools repo (for UAPI headers)
-        uses: actions/checkout@v4
-        with:
-          repository: Hexamania/platform-tools
-          path: platform-tools
-          token: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Checkout kernel source (full, for submodules and build.config)
         uses: actions/checkout@v4
         with:
-          repository: Bocchi-The-Dev/kernel_transsion_ums9230
+          repository: Hexamania/kernel_transsion_ums9230
           ref: ${{ env.KERNEL_REF }}
           path: kernel
           submodules: recursive
@@ -100,7 +93,7 @@ jobs:
           if [ ! -d "kernel_modules/kernel5.4/gpu/gondul/mali_new" ]; then
             mkdir -p kernel_modules/kernel5.4/gpu/gondul/mali_new
             # Copy contents of arm-official directly to mali_new (not the directory itself)
-            cp -r $(pwd)/../platform-tools/drivers/mali/arm-official/. \
+            cp -r drivers/mali/arm-official/. \
               kernel_modules/kernel5.4/gpu/gondul/mali_new/
             echo "ARM Mali driver copied to kernel_modules/kernel5.4/gpu/gondul/mali_new"
           else
@@ -117,18 +110,18 @@ jobs:
             echo "=== Copying CSF headers to ARM Mali driver ==="
             # The CSF headers are in the existing gondul_mali driver source
             # Need to copy them to base/csf/ to match #include <csf/mali_base_csf_kernel.h>
-            if [ -d "$(pwd)/../platform-tools/driver/gondul_mali/csf" ]; then
+            if [ -d "driver/gondul_mali/csf" ]; then
               mkdir -p "$MALI_DIR/base/csf"
-              cp -r "$(pwd)/../platform-tools/driver/gondul_mali/csf/"*.h "$MALI_DIR/base/csf/"
+              cp -r "driver/gondul_mali/csf/"*.h "$MALI_DIR/base/csf/"
               echo "CSF headers copied to $MALI_DIR/base/csf/"
               ls -la "$MALI_DIR/base/csf/"
-            elif [ -d "$(pwd)/../platform-tools/drivers/mali/gondul-rmx3511/csf" ]; then
+            elif [ -d "drivers/mali/gondul-rmx3511/csf" ]; then
               mkdir -p "$MALI_DIR/base/csf"
-              cp -r "$(pwd)/../platform-tools/drivers/mali/gondul-rmx3511/csf/"*.h "$MALI_DIR/base/csf/"
+              cp -r "drivers/mali/gondul-rmx3511/csf/"*.h "$MALI_DIR/base/csf/"
               echo "CSF headers copied from gondul-rmx3511 to $MALI_DIR/base/csf/"
               ls -la "$MALI_DIR/base/csf/"
             else
-              echo "WARNING: CSF headers not found in platform-tools"
+              echo "WARNING: CSF headers not found in kernel repo"
             fi
           fi
 
@@ -323,26 +316,26 @@ jobs:
             # This is an ARM compatibility header from the Mali driver source
             # The external module build (make O=out M=...) looks for headers in the kernel source tree
             echo "=== Copying ARM Mali version_compat_defs.h to kernel source tree ==="
-            if [ -f "$(pwd)/../platform-tools/drivers/mali/arm-official/include/linux/version_compat_defs.h" ]; then
+            if [ -f "drivers/mali/arm-official/include/linux/version_compat_defs.h" ]; then
               mkdir -p include/linux
-              cp "$(pwd)/../platform-tools/drivers/mali/arm-official/include/linux/version_compat_defs.h" include/linux/
+              cp "drivers/mali/arm-official/include/linux/version_compat_defs.h" include/linux/
               echo "Copied version_compat_defs.h to include/linux/"
               ls -la include/linux/version_compat_defs.h
             else
-              echo "WARNING: version_compat_defs.h not found in platform-tools"
+              echo "WARNING: version_compat_defs.h not found in kernel repo"
             fi
 
             # Copy ARM Mali memory_group_manager.h compatibility header to kernel source tree include/linux
             # The Mali driver includes: #include <linux/memory_group_manager.h>
             # This header is only available in Linux 6.6+, so we provide a compatibility version for older kernels
             echo "=== Copying ARM Mali memory_group_manager.h compatibility header to kernel source tree ==="
-            if [ -f "$(pwd)/../platform-tools/drivers/mali/arm-official/include/linux/memory_group_manager.h" ]; then
+            if [ -f "drivers/mali/arm-official/include/linux/memory_group_manager.h" ]; then
               mkdir -p include/linux
-              cp "$(pwd)/../platform-tools/drivers/mali/arm-official/include/linux/memory_group_manager.h" include/linux/
+              cp "drivers/mali/arm-official/include/linux/memory_group_manager.h" include/linux/
               echo "Copied memory_group_manager.h to include/linux/"
               ls -la include/linux/memory_group_manager.h
             else
-              echo "WARNING: memory_group_manager.h not found in platform-tools"
+              echo "WARNING: memory_group_manager.h not found in kernel repo"
             fi
 
             # Copy ARM Mali UAPI headers to kernel source tree include/uapi/
@@ -409,10 +402,9 @@ jobs:
             fi
 
             # Copy ALL UAPI headers from platform-tools driver source
-            # The platform-tools repo is checked out at platform-tools/
-            # Headers are at platform-tools/driver/product/kernel/include/uapi/gpu/arm/midgard/
-            PLATFORM_TOOLS_PATH="$(pwd)/../platform-tools"
-            UAPI_SRC="$PLATFORM_TOOLS_PATH/driver/product/kernel/include/uapi/gpu/arm/midgard"
+            # The platform-tools headers are in the kernel repo (fork) at driver/product/kernel/include/uapi/gpu/arm/midgard/
+            # Since we're in the kernel directory (cd kernel), the path is ./driver/product/kernel/include/uapi/gpu/arm/midgard/
+            UAPI_SRC="driver/product/kernel/include/uapi/gpu/arm/midgard"
             UAPI_DST="include/uapi/gpu/arm/midgard"
             OUT_UAPI_DST="out/include/uapi/gpu/arm/midgard"
             OUT_USR_UAPI_DST="out/usr/include/uapi/gpu/arm/midgard"
