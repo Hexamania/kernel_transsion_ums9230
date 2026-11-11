@@ -19,6 +19,7 @@ on:
     paths:
       - '.github/workflows/build-mali-transsion.yml'
       - 'drivers/mali/arm-official/**'
+      - 'driver/product/**'
       - 'build/**'
 
 permissions:
