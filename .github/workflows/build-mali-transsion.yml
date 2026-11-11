@@ -48,7 +48,13 @@ jobs:
           repository: Hexamania/kernel_transsion_ums9230
           ref: ${{ env.KERNEL_REF }}
           path: kernel
-          submodules: recursive
+          # submodules: recursive - disabled due to submodule URL issues in fork
+          # Will initialize submodules manually
+
+      - name: Initialize kernel submodules
+        run: |
+          cd kernel
+          git submodule update --init --recursive || echo "Submodule init failed, continuing..."
 
       - name: Set kernel commit output
         id: get_commit
