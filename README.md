@@ -1,4 +1,4 @@
-# Infinix X6525 (Smart 8) - Mali CSF Kernel Driver Build
+# Infinix X6525 (Smart 8) - Mali CSF Kernel Driver Build For One UI 9 Fix
 
 > **Root Cause**: Mali-G57 MC2 (Valhall) hardware with Midgard r40p0 kernel driver → missing `callback_power_off_second_part` → GPU power cycling every ~6-60s → Chrome GPU channel timeout → black screen / soft reboot
 
