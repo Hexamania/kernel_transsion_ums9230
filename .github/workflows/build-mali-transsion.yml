@@ -409,6 +409,8 @@ jobs:
             PLATFORM_TOOLS_PATH="${{ github.workspace }}"
             UAPI_SRC="$PLATFORM_TOOLS_PATH/driver/product/kernel/include/uapi/gpu/arm/midgard"
             UAPI_DST="include/uapi/gpu/arm/midgard"
+            OUT_UAPI_DST="out/include/uapi/gpu/arm/midgard"
+            OUT_USR_UAPI_DST="out/usr/include/uapi/gpu/arm/midgard"
 
             if [ -d "$UAPI_SRC" ]; then
               echo "=== Copying UAPI headers from platform-tools driver source ==="
@@ -417,24 +419,34 @@ jobs:
               if [ -f "$UAPI_SRC/mali_base_common_kernel.h" ]; then
                 echo "Copying mali_base_common_kernel.h"
                 cp "$UAPI_SRC/mali_base_common_kernel.h" "$UAPI_DST/"
+                mkdir -p "$OUT_UAPI_DST" && cp "$UAPI_SRC/mali_base_common_kernel.h" "$OUT_UAPI_DST/"
+                mkdir -p "$OUT_USR_UAPI_DST" && cp "$UAPI_SRC/mali_base_common_kernel.h" "$OUT_USR_UAPI_DST/"
               fi
 
               # Copy mali_base_mem_priv.h (includes mali_base_common_kernel.h, used by mali_base_kernel.h)
               if [ -f "$UAPI_SRC/mali_base_mem_priv.h" ]; then
                 echo "Copying mali_base_mem_priv.h"
                 cp "$UAPI_SRC/mali_base_mem_priv.h" "$UAPI_DST/"
+                mkdir -p "$OUT_UAPI_DST" && cp "$UAPI_SRC/mali_base_mem_priv.h" "$OUT_UAPI_DST/"
+                mkdir -p "$OUT_USR_UAPI_DST" && cp "$UAPI_SRC/mali_base_mem_priv.h" "$OUT_USR_UAPI_DST/"
               fi
 
               # Copy mali_base_kernel.h (includes mali_base_mem_priv.h and CSF/JM headers)
+              # THIS IS CRITICAL: platform-tools version (644 lines) includes mali_base_csf_kernel.h
+              # but does NOT define mali_base_gpu_core_props directly (unlike kernel's 702-line version)
               if [ -f "$UAPI_SRC/mali_base_kernel.h" ]; then
                 echo "Copying mali_base_kernel.h"
                 cp "$UAPI_SRC/mali_base_kernel.h" "$UAPI_DST/"
+                mkdir -p "$OUT_UAPI_DST" && cp "$UAPI_SRC/mali_base_kernel.h" "$OUT_UAPI_DST/"
+                mkdir -p "$OUT_USR_UAPI_DST" && cp "$UAPI_SRC/mali_base_kernel.h" "$OUT_USR_UAPI_DST/"
               fi
 
               # Copy mali_kbase_ioctl.h
               if [ -f "$UAPI_SRC/mali_kbase_ioctl.h" ]; then
                 echo "Copying mali_kbase_ioctl.h"
                 cp "$UAPI_SRC/mali_kbase_ioctl.h" "$UAPI_DST/"
+                mkdir -p "$OUT_UAPI_DST" && cp "$UAPI_SRC/mali_kbase_ioctl.h" "$OUT_UAPI_DST/"
+                mkdir -p "$OUT_USR_UAPI_DST" && cp "$UAPI_SRC/mali_kbase_ioctl.h" "$OUT_USR_UAPI_DST/"
               fi
 
               # Copy CSF headers directory
@@ -442,6 +454,10 @@ jobs:
                 echo "Copying CSF UAPI headers"
                 mkdir -p "$UAPI_DST/csf"
                 cp "$UAPI_SRC/csf/"*.h "$UAPI_DST/csf/"
+                mkdir -p "$OUT_UAPI_DST/csf"
+                cp "$UAPI_SRC/csf/"*.h "$OUT_UAPI_DST/csf/"
+                mkdir -p "$OUT_USR_UAPI_DST/csf"
+                cp "$UAPI_SRC/csf/"*.h "$OUT_USR_UAPI_DST/csf/"
               fi
 
               # Copy GPU headers directory
@@ -449,12 +465,20 @@ jobs:
                 echo "Copying GPU UAPI headers"
                 mkdir -p "$UAPI_DST/gpu"
                 cp "$UAPI_SRC/gpu/"*.h "$UAPI_DST/gpu/"
+                mkdir -p "$OUT_UAPI_DST/gpu"
+                cp "$UAPI_SRC/gpu/"*.h "$OUT_UAPI_DST/gpu/"
+                mkdir -p "$OUT_USR_UAPI_DST/gpu"
+                cp "$UAPI_SRC/gpu/"*.h "$OUT_USR_UAPI_DST/gpu/"
               fi
 
               echo "Copied all UAPI headers from platform-tools"
               ls -la "$UAPI_DST/"
               ls -la "$UAPI_DST/csf/" 2>/dev/null || true
               ls -la "$UAPI_DST/gpu/" 2>/dev/null || true
+              echo "=== out/include/uapi ==="
+              ls -la "$OUT_UAPI_DST/" 2>/dev/null || true
+              echo "=== out/usr/include/uapi ==="
+              ls -la "$OUT_USR_UAPI_DST/" 2>/dev/null || true
 
               # Also copy to Mali driver's own UAPI directory (gondul/include/uapi/gpu/arm/midgard/)
               # The Mali driver includes UAPI headers via relative path: ../include/uapi/gpu/arm/midgard/
