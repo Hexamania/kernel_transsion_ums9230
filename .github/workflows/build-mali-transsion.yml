@@ -425,16 +425,10 @@ jobs:
               echo "WARNING: mali_kbase_ioctl.h not found in platform-tools"
             fi
 
-            # Copy mali_base_common_kernel.h from platform-tools driver source
-            # This is required by mali_base_csf_kernel.h which includes it as ../mali_base_common_kernel.h
-            if [ -f "$PLATFORM_TOOLS_PATH/driver/product/kernel/include/uapi/gpu/arm/midgard/mali_base_common_kernel.h" ]; then
-              echo "=== Copying mali_base_common_kernel.h from platform-tools driver source ==="
-              cp "$PLATFORM_TOOLS_PATH/driver/product/kernel/include/uapi/gpu/arm/midgard/mali_base_common_kernel.h" include/uapi/gpu/arm/midgard/
-              echo "Copied mali_base_common_kernel.h"
-              ls -la include/uapi/gpu/arm/midgard/mali_base_common_kernel.h
-            else
-              echo "WARNING: mali_base_common_kernel.h not found in platform-tools"
-            fi
+            # NOTE: mali_base_common_kernel.h is NOT copied separately
+            # It is included by mali_base_kernel.h (which is already copied)
+            # The mali_base_csf_kernel.h includes it via relative path ../mali_base_common_kernel.h
+            # from the csf/ subdirectory, which works with the correct directory structure
 
             echo "UAPI headers installed to include/uapi/gpu/arm/midgard/"
             ls -la include/uapi/gpu/arm/midgard/
