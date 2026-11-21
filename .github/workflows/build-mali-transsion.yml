@@ -97,42 +97,41 @@ jobs:
           grep -r "CONFIG_MALI" arch/arm64/configs/ 2>/dev/null | head -20 || echo "No Mali configs found in defconfigs"
           grep -r "CONFIG_MALI_CSF_SUPPORT" . 2>/dev/null || echo "CSF config not found in kernel source"
 
-      - name: Apply ARM Mali driver (BX304L01B-r44p1)
+      - name: Use fork's Mali driver (compatible with kernel 5.4)
         if: ${{ env.ENABLE_CSF == 'true' }}
         run: |
           cd kernel
-          if [ ! -d "kernel_modules/kernel5.4/gpu/gondul/mali_new" ]; then
+          # The fork's driver/gondul_mali/ is already adapted for kernel 5.4
+          # It includes a simplified native MGM implementation that matches the kernel 5.4 API
+          # We'll use this instead of the upstream's mali_new (BX304L01B-r44p1) which requires newer kernel API
+          if [ -d "driver/gondul_mali" ]; then
+            echo "=== Using fork's Mali driver from driver/gondul_mali ==="
+            # Create mali_new directory and copy fork's driver there for building
             mkdir -p kernel_modules/kernel5.4/gpu/gondul/mali_new
-            # Copy contents of arm-official directly to mali_new (not the directory itself)
-            cp -r drivers/mali/arm-official/. \
-              kernel_modules/kernel5.4/gpu/gondul/mali_new/
-            echo "ARM Mali driver copied to kernel_modules/kernel5.4/gpu/gondul/mali_new"
+            cp -r driver/gondul_mali/. kernel_modules/kernel5.4/gpu/gondul/mali_new/
+            echo "Fork's Mali driver copied to kernel_modules/kernel5.4/gpu/gondul/mali_new"
+            ls -la kernel_modules/kernel5.4/gpu/gondul/mali_new/
           else
-            echo "ARM Mali driver already present"
+            echo "ERROR: Fork's driver/gondul_mali not found!"
+            exit 1
           fi
-          ls -la kernel_modules/kernel5.4/gpu/gondul/mali_new/
 
-      - name: Copy CSF headers to ARM Mali driver
+      - name: Ensure CSF headers in Mali driver
         if: ${{ env.ENABLE_CSF == 'true' }}
         run: |
           cd kernel
           MALI_DIR="kernel_modules/kernel5.4/gpu/gondul/mali_new"
           if [ -d "$MALI_DIR" ]; then
-            echo "=== Copying CSF headers to ARM Mali driver ==="
-            # The CSF headers are in the existing gondul_mali driver source
-            # Need to copy them to base/csf/ to match #include <csf/mali_base_csf_kernel.h>
-            if [ -d "driver/gondul_mali/csf" ]; then
-              mkdir -p "$MALI_DIR/base/csf"
-              cp -r "driver/gondul_mali/csf/"*.h "$MALI_DIR/base/csf/"
-              echo "CSF headers copied to $MALI_DIR/base/csf/"
-              ls -la "$MALI_DIR/base/csf/"
-            elif [ -d "drivers/mali/gondul-rmx3511/csf" ]; then
-              mkdir -p "$MALI_DIR/base/csf"
-              cp -r "drivers/mali/gondul-rmx3511/csf/"*.h "$MALI_DIR/base/csf/"
-              echo "CSF headers copied from gondul-rmx3511 to $MALI_DIR/base/csf/"
+            echo "=== Ensuring CSF headers in Mali driver ==="
+            # The fork's driver/gondul_mali already has CSF headers in base/csf/
+            # Just verify they exist
+            if [ -d "$MALI_DIR/base/csf" ]; then
+              echo "CSF headers already present in $MALI_DIR/base/csf/"
               ls -la "$MALI_DIR/base/csf/"
             else
-              echo "WARNING: CSF headers not found in kernel repo"
+              echo "WARNING: CSF headers not found in $MALI_DIR/base/csf/"
+              # Create empty directory to avoid build errors
+              mkdir -p "$MALI_DIR/base/csf"
             fi
           fi
 
@@ -292,21 +291,16 @@ jobs:
           echo "Headers installed to out/usr/include"
           ls -la out/usr/include/ 2>/dev/null | head -10
 
-          # Copy ARM Mali driver UAPI headers to kernel installed headers
-          # The ARM Mali driver (BX304L01B-r44p1) has UAPI headers in base/uapi/ and include/uapi/
+          # Copy fork's Mali driver UAPI headers to kernel installed headers
+          # The fork's driver/gondul_mali has UAPI headers in include/uapi/
           # These need to be in the kernel's header installation path for the module build to find them
           # Source includes use: #include <uapi/gpu/arm/midgard/mali_base_kernel.h>
           # So headers must be installed at out/usr/include/uapi/gpu/arm/midgard/
           MALI_DIR="kernel_modules/kernel5.4/gpu/gondul/mali_new"
           if [ -d "$MALI_DIR" ]; then
-            echo "=== Copying ARM Mali UAPI headers to kernel installed headers ==="
+            echo "=== Copying fork's Mali UAPI headers to kernel installed headers ==="
             # Create the target directory (with uapi/ prefix to match #include <uapi/...>)
             mkdir -p out/usr/include/uapi/gpu/arm/midgard
-            # Copy from base/uapi/gpu/arm/midgard/
-            if [ -d "$MALI_DIR/base/uapi/gpu/arm/midgard" ]; then
-              cp -r "$MALI_DIR/base/uapi/gpu/arm/midgard/"* out/usr/include/uapi/gpu/arm/midgard/
-              echo "Copied base/uapi headers"
-            fi
             # Copy from include/uapi/gpu/arm/midgard/
             if [ -d "$MALI_DIR/include/uapi/gpu/arm/midgard" ]; then
               cp -r "$MALI_DIR/include/uapi/gpu/arm/midgard/"* out/usr/include/uapi/gpu/arm/midgard/
@@ -322,99 +316,57 @@ jobs:
             echo "UAPI headers installed to out/usr/include/uapi/gpu/arm/midgard/"
             ls -la out/usr/include/uapi/gpu/arm/midgard/
             ls -la out/usr/include/uapi/gpu/arm/midgard/gpu/ 2>/dev/null || true
-            # Copy ARM Mali version_compat_defs.h to kernel source tree include/linux
+
+            # Copy fork's version_compat_defs.h to kernel source tree include/linux
             # The Mali driver includes: #include <linux/version_compat_defs.h>
-            # This is an ARM compatibility header from the Mali driver source
-            # The external module build (make O=out M=...) looks for headers in the kernel source tree
-            echo "=== Copying ARM Mali version_compat_defs.h to kernel source tree ==="
-            if [ -f "drivers/mali/arm-official/include/linux/version_compat_defs.h" ]; then
+            echo "=== Copying fork's version_compat_defs.h to kernel source tree ==="
+            if [ -f "$MALI_DIR/include/linux/version_compat_defs.h" ]; then
               mkdir -p include/linux
-              cp "drivers/mali/arm-official/include/linux/version_compat_defs.h" include/linux/
+              cp "$MALI_DIR/include/linux/version_compat_defs.h" include/linux/
               echo "Copied version_compat_defs.h to include/linux/"
               ls -la include/linux/version_compat_defs.h
             else
-              echo "WARNING: version_compat_defs.h not found in kernel repo"
+              echo "WARNING: version_compat_defs.h not found in fork's driver"
             fi
 
-            # Copy ARM Mali memory_group_manager.h compatibility header to kernel source tree include/linux
+            # Copy fork's memory_group_manager.h compatibility header to kernel source tree include/linux
             # The Mali driver includes: #include <linux/memory_group_manager.h>
-            # This header is only available in Linux 6.6+, so we provide a compatibility version for older kernels
-            echo "=== Copying ARM Mali memory_group_manager.h compatibility header to kernel source tree ==="
-            if [ -f "drivers/mali/arm-official/include/linux/memory_group_manager.h" ]; then
+            # This header is provided by the fork's driver for kernel 5.4 compatibility
+            echo "=== Copying fork's memory_group_manager.h to kernel source tree ==="
+            if [ -f "$MALI_DIR/include/linux/memory_group_manager.h" ]; then
               mkdir -p include/linux
-              cp "drivers/mali/arm-official/include/linux/memory_group_manager.h" include/linux/
+              cp "$MALI_DIR/include/linux/memory_group_manager.h" include/linux/
               echo "Copied memory_group_manager.h to include/linux/"
               ls -la include/linux/memory_group_manager.h
             else
-              echo "WARNING: memory_group_manager.h not found in kernel repo"
+              echo "WARNING: memory_group_manager.h not found in fork's driver"
             fi
 
-            # Copy ARM Mali UAPI headers to kernel source tree include/uapi/
+            # Copy fork's Mali UAPI headers to kernel source tree include/uapi/
             # The kernel build system for external modules (make O=out M=...) looks for
             # UAPI headers in the kernel source tree's include/uapi/ directory
-            # The Mali driver uses: #include <uapi/gpu/arm/midgard/...> and #include <uapi/gpu/arm/midgard/gpu/...>
-            echo "=== Copying ARM Mali UAPI headers to kernel source tree include/uapi/ ==="
+            echo "=== Copying fork's Mali UAPI headers to kernel source tree include/uapi/ ==="
             mkdir -p include/uapi/gpu/arm/midgard
             mkdir -p include/uapi/gpu/arm/midgard/gpu
-            # Copy from base/uapi/gpu/arm/midgard/
-            if [ -d "$MALI_DIR/base/uapi/gpu/arm/midgard" ]; then
-              cp -r "$MALI_DIR/base/uapi/gpu/arm/midgard/"* include/uapi/gpu/arm/midgard/
-              echo "Copied base/uapi headers to include/uapi/"
-            fi
             # Copy from include/uapi/gpu/arm/midgard/
             if [ -d "$MALI_DIR/include/uapi/gpu/arm/midgard" ]; then
               cp -r "$MALI_DIR/include/uapi/gpu/arm/midgard/"* include/uapi/gpu/arm/midgard/
               echo "Copied include/uapi headers to include/uapi/"
             fi
             # Copy from midgard/gpu/ (GPU-specific headers like mali_kbase_gpu_regmap.h)
-            # These are included as <uapi/gpu/arm/midgard/gpu/...>
             if [ -d "$MALI_DIR/midgard/gpu" ]; then
               cp -r "$MALI_DIR/midgard/gpu/"*.h include/uapi/gpu/arm/midgard/gpu/
               echo "Copied midgard/gpu headers to include/uapi/"
             fi
 
-            # Copy CSF UAPI headers from ARM Mali driver
-            # The ARM Mali driver expects CSF UAPI headers at uapi/gpu/arm/midgard/csf/
-            # These are not included in the ARM driver source package, so we provide them
+            # Copy CSF UAPI headers from fork's driver
             mkdir -p include/uapi/gpu/arm/midgard/csf
             if [ -d "$MALI_DIR/include/uapi/gpu/arm/midgard/csf" ]; then
               cp -r "$MALI_DIR/include/uapi/gpu/arm/midgard/csf/"*.h include/uapi/gpu/arm/midgard/csf/
-              echo "Copied ARM Mali CSF UAPI headers to include/uapi/"
-            fi
-
-            # Copy CSF UAPI headers from existing kernel Mali driver
-            # The kernel's existing Mali driver (at kernel_modules/kernel5.4/gpu/gondul/)
-            # may have CSF UAPI headers that the ARM Mali driver expects
-            EXISTING_MALI_DIR="kernel_modules/kernel5.4/gpu/gondul"
-            if [ -d "$EXISTING_MALI_DIR/midgard/csf" ]; then
-              mkdir -p include/uapi/gpu/arm/midgard/csf
-              # Look for UAPI headers in the existing driver's csf directory
-              find "$EXISTING_MALI_DIR/midgard/csf" -name "*.h" -path "*uapi*" 2>/dev/null | while read hdr; do
-                cp "$hdr" include/uapi/gpu/arm/midgard/csf/ 2>/dev/null || true
-              done
-              # Also check if there are any headers directly in midgard/csf that might be UAPI
-              # The ARM Mali driver expects headers at uapi/gpu/arm/midgard/csf/
-              if [ -d "$EXISTING_MALI_DIR/midgard/csf" ]; then
-                # Copy any header files that might be UAPI headers
-                cp "$EXISTING_MALI_DIR/midgard/csf/"*.h include/uapi/gpu/arm/midgard/csf/ 2>/dev/null || true
-              fi
-              if [ -d "$EXISTING_MALI_DIR/midgard/csf/ipa_control" ]; then
-                mkdir -p include/uapi/gpu/arm/midgard/csf/ipa_control
-                cp "$EXISTING_MALI_DIR/midgard/csf/ipa_control/"*.h include/uapi/gpu/arm/midgard/csf/ipa_control/ 2>/dev/null || true
-              fi
-              echo "Copied CSF UAPI headers from existing Mali driver"
-              ls -la include/uapi/gpu/arm/midgard/csf/ 2>/dev/null || true
-            fi
-
-            # Also check the kernel's own include/uapi for CSF headers
-            if [ -d "include/uapi/gpu/arm/midgard/csf" ]; then
-              echo "Kernel already has CSF UAPI headers at include/uapi/gpu/arm/midgard/csf/"
-              ls -la include/uapi/gpu/arm/midgard/csf/
+              echo "Copied fork's CSF UAPI headers to include/uapi/"
             fi
 
             # Copy ALL UAPI headers from platform-tools driver source
-            # The platform-tools headers are in the kernel repo (fork) at driver/product/kernel/include/uapi/gpu/arm/midgard/
-            # Since we're in the kernel directory (cd kernel), the path is ./driver/product/kernel/include/uapi/gpu/arm/midgard/
             UAPI_SRC="driver/product/kernel/include/uapi/gpu/arm/midgard"
             UAPI_DST="include/uapi/gpu/arm/midgard"
             OUT_UAPI_DST="out/include/uapi/gpu/arm/midgard"
@@ -423,7 +375,7 @@ jobs:
             if [ -d "$UAPI_SRC" ]; then
               echo "=== Copying UAPI headers from platform-tools driver source ==="
 
-              # Copy mali_base_common_kernel.h (defines base_mem_handle, base_mem_alloc_flags, etc.)
+              # Copy mali_base_common_kernel.h
               if [ -f "$UAPI_SRC/mali_base_common_kernel.h" ]; then
                 echo "Copying mali_base_common_kernel.h"
                 cp "$UAPI_SRC/mali_base_common_kernel.h" "$UAPI_DST/"
@@ -431,7 +383,7 @@ jobs:
                 mkdir -p "$OUT_USR_UAPI_DST" && cp "$UAPI_SRC/mali_base_common_kernel.h" "$OUT_USR_UAPI_DST/"
               fi
 
-              # Copy mali_base_mem_priv.h (includes mali_base_common_kernel.h, used by mali_base_kernel.h)
+              # Copy mali_base_mem_priv.h
               if [ -f "$UAPI_SRC/mali_base_mem_priv.h" ]; then
                 echo "Copying mali_base_mem_priv.h"
                 cp "$UAPI_SRC/mali_base_mem_priv.h" "$UAPI_DST/"
@@ -439,9 +391,7 @@ jobs:
                 mkdir -p "$OUT_USR_UAPI_DST" && cp "$UAPI_SRC/mali_base_mem_priv.h" "$OUT_USR_UAPI_DST/"
               fi
 
-              # Copy mali_base_kernel.h (includes mali_base_mem_priv.h and CSF/JM headers)
-              # THIS IS CRITICAL: platform-tools version (644 lines) includes mali_base_csf_kernel.h
-              # but does NOT define mali_base_gpu_core_props directly (unlike kernel's 702-line version)
+              # Copy mali_base_kernel.h
               if [ -f "$UAPI_SRC/mali_base_kernel.h" ]; then
                 echo "Copying mali_base_kernel.h"
                 cp "$UAPI_SRC/mali_base_kernel.h" "$UAPI_DST/"
@@ -487,53 +437,6 @@ jobs:
               ls -la "$OUT_UAPI_DST/" 2>/dev/null || true
               echo "=== out/usr/include/uapi ==="
               ls -la "$OUT_USR_UAPI_DST/" 2>/dev/null || true
-
-              # Also copy to Mali driver's gondul UAPI directory (kernel_modules/kernel5.4/gpu/gondul/include/uapi/gpu/arm/midgard/)
-              # This is for any includes that resolve to the parent gondul directory
-              MALI_UAPI_DST_GONDUL="$MALI_DIR/../include/uapi/gpu/arm/midgard"
-              if [ -d "$MALI_UAPI_DST_GONDUL" ] || mkdir -p "$MALI_UAPI_DST_GONDUL"; then
-                echo "=== Copying UAPI headers to Mali driver's gondul UAPI directory ==="
-                cp -f "$UAPI_SRC/mali_base_common_kernel.h" "$MALI_UAPI_DST_GONDUL/" 2>/dev/null || true
-                cp -f "$UAPI_SRC/mali_base_mem_priv.h" "$MALI_UAPI_DST_GONDUL/" 2>/dev/null || true
-                cp -f "$UAPI_SRC/mali_base_kernel.h" "$MALI_UAPI_DST_GONDUL/" 2>/dev/null || true
-                cp -f "$UAPI_SRC/mali_kbase_ioctl.h" "$MALI_UAPI_DST_GONDUL/" 2>/dev/null || true
-                if [ -d "$UAPI_SRC/csf" ]; then
-                  mkdir -p "$MALI_UAPI_DST_GONDUL/csf"
-                  cp -f "$UAPI_SRC/csf/"*.h "$MALI_UAPI_DST_GONDUL/csf/" 2>/dev/null || true
-                fi
-                if [ -d "$UAPI_SRC/gpu" ]; then
-                  mkdir -p "$MALI_UAPI_DST_GONDUL/gpu"
-                  cp -f "$UAPI_SRC/gpu/"*.h "$MALI_UAPI_DST_GONDUL/gpu/" 2>/dev/null || true
-                fi
-                echo "Copied UAPI headers to Mali driver's gondul UAPI directory"
-                ls -la "$MALI_UAPI_DST_GONDUL/"
-                ls -la "$MALI_UAPI_DST_GONDUL/csf/" 2>/dev/null || true
-                ls -la "$MALI_UAPI_DST_GONDUL/gpu/" 2>/dev/null || true
-              fi
-
-              # Also copy to Mali driver's mali_new UAPI directory (kernel_modules/kernel5.4/gpu/gondul/mali_new/include/uapi/gpu/arm/midgard/)
-              # The Mali driver's mali_kbase.h includes: #include "../include/uapi/gpu/arm/midgard/mali_base_kernel.h"
-              # From mali_new/midgard/, ../include/uapi/ resolves to mali_new/include/uapi/
-              MALI_UAPI_DST_MALI_NEW="$MALI_DIR/include/uapi/gpu/arm/midgard"
-              if [ -d "$MALI_UAPI_DST_MALI_NEW" ] || mkdir -p "$MALI_UAPI_DST_MALI_NEW"; then
-                echo "=== Copying UAPI headers to Mali driver's mali_new UAPI directory ==="
-                cp -f "$UAPI_SRC/mali_base_common_kernel.h" "$MALI_UAPI_DST_MALI_NEW/" 2>/dev/null || true
-                cp -f "$UAPI_SRC/mali_base_mem_priv.h" "$MALI_UAPI_DST_MALI_NEW/" 2>/dev/null || true
-                cp -f "$UAPI_SRC/mali_base_kernel.h" "$MALI_UAPI_DST_MALI_NEW/" 2>/dev/null || true
-                cp -f "$UAPI_SRC/mali_kbase_ioctl.h" "$MALI_UAPI_DST_MALI_NEW/" 2>/dev/null || true
-                if [ -d "$UAPI_SRC/csf" ]; then
-                  mkdir -p "$MALI_UAPI_DST_MALI_NEW/csf"
-                  cp -f "$UAPI_SRC/csf/"*.h "$MALI_UAPI_DST_MALI_NEW/csf/" 2>/dev/null || true
-                fi
-                if [ -d "$UAPI_SRC/gpu" ]; then
-                  mkdir -p "$MALI_UAPI_DST_MALI_NEW/gpu"
-                  cp -f "$UAPI_SRC/gpu/"*.h "$MALI_UAPI_DST_MALI_NEW/gpu/" 2>/dev/null || true
-                fi
-                echo "Copied UAPI headers to Mali driver's mali_new UAPI directory"
-                ls -la "$MALI_UAPI_DST_MALI_NEW/"
-                ls -la "$MALI_UAPI_DST_MALI_NEW/csf/" 2>/dev/null || true
-                ls -la "$MALI_UAPI_DST_MALI_NEW/gpu/" 2>/dev/null || true
-              fi
             else
               echo "WARNING: platform-tools UAPI headers not found at $UAPI_SRC"
             fi
