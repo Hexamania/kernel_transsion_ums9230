@@ -192,6 +192,15 @@ jobs:
             --set-str CONFIG_MALI_PLATFORM_NAME devicetree \
             --disable CONFIG_MALI_DEBUG || true
 
+          # Patch arm64 atomic headers for atomic64_t compatibility with GCC 15
+          # kernel 5.4 arm64 atomic.h uses atomic64_t but doesn't define it.
+          # Adding just the typedef (not the full header) avoids conflicts with
+          # asm-generic/atomic-instrumented.h which defines the same functions.
+          if ! grep -q 'typedef long long atomic64_t' arch/arm64/include/asm/atomic.h; then
+            echo "Adding atomic64_t typedef to arch/arm64/include/asm/atomic.h..."
+            sed -i '/#ifdef __KERNEL__/a typedef long long atomic64_t;' arch/arm64/include/asm/atomic.h
+          fi
+
           # Build kernel image and prepare for external modules
           echo "Preparing kernel for external module builds..."
           make O=out modules_prepare -j$(nproc)
