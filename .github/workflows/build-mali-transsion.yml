@@ -1,10 +1,10 @@
-name: Build Mali CSF Module (Transsion UMS9230 GKI)
+name: Build Mali CSF Module (Transsion UMS9230)
 
 on:
   workflow_dispatch:
     inputs:
       kernel_ref:
-        description: 'Kernel branch/tag/commit to build'
+        description: 'Kernel branch/tag/commit to build (from fork)'
         required: false
         default: 'build-infra'
         type: string
@@ -18,9 +18,9 @@ on:
       - build-infra
     paths:
       - '.github/workflows/build-mali-transsion.yml'
-      - 'drivers/mali/arm-official/**'
-      - 'driver/product/**'
-      - 'build/**'
+      - 'kernel_modules/kernel5.4/gpu/gondul/mali/**'
+      - 'arch/arm64/configs/bg6*_defconfig'
+      - 'driver/product/kernel/include/uapi/gpu/arm/midgard/**'
 
 permissions:
   contents: write
@@ -32,32 +32,26 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 180
     env:
-      KERNEL_REPO: https://github.com/Bocchi-The-Dev/kernel_transsion_ums9230.git
-      # For push events, use the branch name from github.ref (e.g., refs/heads/build-infra -> build-infra)
+      # Use FORK's kernel repo, not upstream
+      KERNEL_REPO: https://github.com/Hexamania/kernel_transsion_ums9230.git
+      # For push events, use the branch name from github.ref
       # For workflow_dispatch, use the input (default: build-infra)
       KERNEL_REF: ${{ github.event_name == 'push' && github.ref_name || github.event.inputs.kernel_ref || 'build-infra' }}
       ENABLE_CSF: ${{ github.event.inputs.enable_csf || 'true' }}
+      # Use fork's defconfig for T606/ums9230
+      DEFCONFIG: bg6_defconfig
     outputs:
       kernel_commit: ${{ steps.get_commit.outputs.commit }}
       module_path: ${{ steps.find_module.outputs.path }}
 
     steps:
-      - name: Checkout kernel source from upstream (for build.config and full source)
+      - name: Checkout fork's kernel source (contains Mali driver and defconfigs)
         uses: actions/checkout@v4
         with:
-          repository: Bocchi-The-Dev/kernel_transsion_ums9230
-          ref: master
+          repository: Hexamania/kernel_transsion_ums9230
+          ref: ${{ env.KERNEL_REF }}
           path: kernel
           submodules: recursive
-
-      - name: Fetch Mali driver additions from fork
-        run: |
-          cd kernel
-          # Add fork as remote to get drivers/mali and driver/ directories
-          git remote add fork https://github.com/Hexamania/kernel_transsion_ums9230.git
-          git fetch fork build-infra --depth=1
-          # Checkout drivers/mali and driver/ from fork's build-infra branch
-          git checkout fork/build-infra -- drivers/mali driver/product/kernel/include/uapi/gpu/arm/midgard driver/gondul_mali 2>/dev/null || echo "Some paths not found in fork, continuing..."
 
       - name: Set kernel commit output
         id: get_commit
@@ -74,7 +68,7 @@ jobs:
             libssl-dev bc flex bison libelf-dev dwarves \
             python3 git wget cpio kmod ccache \
             python3-pyelftools libncurses5-dev \
-            gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi
+            gcc-aarch64-linux-gnu gcc-arm-linux-gnuabi
 
       - name: Setup clang
         run: |
@@ -97,74 +91,46 @@ jobs:
           grep -r "CONFIG_MALI" arch/arm64/configs/ 2>/dev/null | head -20 || echo "No Mali configs found in defconfigs"
           grep -r "CONFIG_MALI_CSF_SUPPORT" . 2>/dev/null || echo "CSF config not found in kernel source"
 
-      - name: Use fork's Mali driver (compatible with kernel 5.4)
+      - name: Verify fork's Mali driver exists (already at kernel_modules/kernel5.4/gpu/gondul/mali)
         if: ${{ env.ENABLE_CSF == 'true' }}
         run: |
           cd kernel
-          # The fork's driver/gondul_mali/ is already adapted for kernel 5.4
-          # It includes a simplified native MGM implementation that matches the kernel 5.4 API
-          # We'll use this instead of the upstream's mali_new (BX304L01B-r44p1) which requires newer kernel API
-          if [ -d "driver/gondul_mali" ]; then
-            echo "=== Using fork's Mali driver from driver/gondul_mali ==="
-            # Create mali_new directory and copy fork's driver there for building
-            mkdir -p kernel_modules/kernel5.4/gpu/gondul/mali_new
-            cp -r driver/gondul_mali/. kernel_modules/kernel5.4/gpu/gondul/mali_new/
-            echo "Fork's Mali driver copied to kernel_modules/kernel5.4/gpu/gondul/mali_new"
-            ls -la kernel_modules/kernel5.4/gpu/gondul/mali_new/
+          MALI_DIR="kernel_modules/kernel5.4/gpu/gondul/mali"
+          if [ -d "$MALI_DIR" ]; then
+            echo "=== Fork's Mali driver found at $MALI_DIR ==="
+            ls -la "$MALI_DIR/"
+            # Verify CSF headers exist
+            if [ -d "$MALI_DIR/csf" ]; then
+              echo "CSF headers present in $MALI_DIR/csf/"
+              ls -la "$MALI_DIR/csf/"
+            fi
+            # Verify native MGM exists
+            if [ -f "$MALI_DIR/mali_kbase_native_mgm.c" ]; then
+              echo "Native MGM implementation found ✓"
+            fi
+            # Verify memory_group_manager.h exists
+            if [ -f "$MALI_DIR/memory_group_manager.h" ]; then
+              echo "memory_group_manager.h found ✓"
+            fi
           else
-            echo "ERROR: Fork's driver/gondul_mali not found!"
+            echo "ERROR: Fork's Mali driver not found at $MALI_DIR!"
             exit 1
           fi
 
-      - name: Ensure CSF headers in Mali driver
-        if: ${{ env.ENABLE_CSF == 'true' }}
+      - name: Disable KernelSU (not in fork's config)
         run: |
           cd kernel
-          MALI_DIR="kernel_modules/kernel5.4/gpu/gondul/mali_new"
-          if [ -d "$MALI_DIR" ]; then
-            echo "=== Ensuring CSF headers in Mali driver ==="
-            # The fork's driver/gondul_mali already has CSF headers in base/csf/
-            # Just verify they exist
-            if [ -d "$MALI_DIR/base/csf" ]; then
-              echo "CSF headers already present in $MALI_DIR/base/csf/"
-              ls -la "$MALI_DIR/base/csf/"
-            else
-              echo "WARNING: CSF headers not found in $MALI_DIR/base/csf/"
-              # Create empty directory to avoid build errors
-              mkdir -p "$MALI_DIR/base/csf"
-            fi
-          fi
-
-      - name: Handle KernelSU Kconfig (disable if missing)
-        run: |
-          cd kernel
-          if [ ! -d "drivers/kernelsu" ]; then
-            echo "KernelSU not found, disabling in Kconfig..."
-            if [ -f "drivers/Kconfig" ]; then
-              sed -i '/source "drivers\/kernelsu\/Kconfig"/d' drivers/Kconfig || true
-              echo "KernelSU Kconfig source removed"
-            else
-              echo "drivers/Kconfig not found, skipping"
-            fi
+          if [ -d "drivers/kernelsu" ]; then
+            echo "KernelSU found, but fork's defconfig doesn't enable it. Disabling..."
+            sed -i '/source "drivers\/kernelsu\/Kconfig"/d' drivers/Kconfig || true
+            echo "KernelSU Kconfig source removed"
           else
-            echo "KernelSU found, keeping enabled"
+            echo "KernelSU not found in kernel source, skipping"
           fi
 
-      - name: Build kernel (GKI style - manual build.config chain)
+      - name: Build kernel with fork's defconfig
         run: |
           cd kernel
-          echo "=== Debug: Checking build.config files ==="
-          ls -la build.config* 2>/dev/null || echo "No build.config files found in root"
-
-          # Remove build.sh to force manual build path (skips broken modules build)
-          if [ -f "build.sh" ]; then
-            rm -f build.sh
-            echo "Removed build.sh to force manual build path"
-          fi
-
-          # Manual GKI build by sourcing build.config chain
-          # build.config.gki.aarch64 sources: build.config.common, build.config.aarch64, build.config.gki
-          # These files are in the kernel root, so ROOT_DIR=kernel_root, KERNEL_DIR=""
           export ROOT_DIR=$(pwd)
           export KERNEL_DIR=""
           export ARCH=arm64
@@ -179,83 +145,20 @@ jobs:
           export CROSS_COMPILE=aarch64-linux-gnu-
           export CROSS_COMPILE_ARM32=arm-linux-gnueabi-
           export CLANG_TRIPLE=aarch64-linux-gnu-
-          # Disable Werror and shadow-call-stack for compatibility with newer clang (Ubuntu 26.04)
-          export KCFLAGS="-Wno-error -Wno-return-type -Wno-misleading-indentation -Wno-implicit-int -Wno-implicit-function-declaration -fno-sanitize=shadow-call-stack"
+          # Disable Werror and add C99 standard for clang compatibility with older kernel code
+          # -std=gnu11 enables C11 mode which allows 'for' loop initial declarations
+          # Also disable shadow-call-stack which may not be supported
+          export KCFLAGS="-Wno-error -Wno-return-type -Wno-misleading-indentation -Wno-implicit-int -Wno-implicit-function-declaration -fno-sanitize=shadow-call-stack -std=gnu11"
 
-          echo "=== Sourcing build.config chain ==="
-          # Source build.config files in order, with error handling
-          for config in build.config.common build.config.aarch64 build.config.gki build.config.gki.aarch64; do
-            if [ -f "${config}" ]; then
-              echo "Sourcing ${config}..."
-              source "${config}" || { echo "Failed to source ${config}"; exit 1; }
-            else
-              echo "WARNING: ${config} not found, skipping"
-            fi
-          done
-
-          # Ensure MAKE_GOALS is set to only Image.lz4 (override build.config which may include modules/dtbs)
-          # This skips dtbs (which has a DTS bug in qcom ipq8074-hk01.dts) and modules (broken vendor modules)
-          MAKE_GOALS="Image.lz4"
-          echo "MAKE_GOALS: ${MAKE_GOALS}"
-
-          # Get defconfig from GKI_DEFCONFIG_FRAGMENT or KERNEL_DEFCONFIG
-          DEFCONFIG=""
-          if [ -n "${GKI_DEFCONFIG_FRAGMENT}" ] && [ -f "${GKI_DEFCONFIG_FRAGMENT}" ]; then
-            echo "Found GKI_DEFCONFIG_FRAGMENT: ${GKI_DEFCONFIG_FRAGMENT}"
-            DEFCONFIG=$(grep -E '^KERNEL_DEFCONFIG=' "${GKI_DEFCONFIG_FRAGMENT}" | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'" | xargs || true)
-          fi
-
-          if [ -z "${DEFCONFIG}" ]; then
-            DEFCONFIG=$(grep -E '^KERNEL_DEFCONFIG=' build.config.gki 2>/dev/null | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'" | xargs || true)
-          fi
-
-          if [ -z "${DEFCONFIG}" ]; then
-            DEFCONFIG="gki_defconfig"
-          fi
-
-          EXTRA_CONFIGS=$(grep -E '^EXTRA_CONFIGS=' build.config.gki 2>/dev/null | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'" | xargs || true)
-
-          echo "DEFCONFIG: '${DEFCONFIG}'"
-          echo "EXTRA_CONFIGS: '${EXTRA_CONFIGS}'"
-
-          # Check if defconfig exists
-          DEFCONFIG_FILE=""
-          if [ -f "arch/arm64/configs/${DEFCONFIG}" ]; then
-            DEFCONFIG_FILE="arch/arm64/configs/${DEFCONFIG}"
-          elif [ -f "arch/arm64/configs/${DEFCONFIG}_defconfig" ]; then
-            DEFCONFIG_FILE="arch/arm64/configs/${DEFCONFIG}_defconfig"
-            DEFCONFIG="${DEFCONFIG}_defconfig"
-          else
-            # Try common GKI defconfigs
-            for d in gki_defconfig gki_aarch64_defconfig vendor_gki_defconfig; do
-              if [ -f "arch/arm64/configs/${d}" ]; then
-                DEFCONFIG=$d
-                DEFCONFIG_FILE="arch/arm64/configs/${d}"
-                break
-              fi
-            done
-          fi
-
-          if [ -z "${DEFCONFIG_FILE}" ]; then
-            echo "ERROR: No valid defconfig found!"
-            ls arch/arm64/configs/ | head -20
+          echo "=== Using defconfig: ${DEFCONFIG} ==="
+          DEFCONFIG_FILE="arch/arm64/configs/${DEFCONFIG}"
+          if [ ! -f "$DEFCONFIG_FILE" ]; then
+            echo "ERROR: Defconfig not found: $DEFCONFIG_FILE"
+            ls arch/arm64/configs/
             exit 1
           fi
 
-          echo "Using defconfig file: ${DEFCONFIG_FILE}"
           make O=out ${DEFCONFIG}
-
-          # Apply extra config fragments if any
-          if [ -n "${EXTRA_CONFIGS}" ]; then
-            for config in ${EXTRA_CONFIGS}; do
-              if [ -f "${config}" ]; then
-                echo "Merging config fragment: ${config}"
-                scripts/kconfig/merge_config.sh -m -O out out/.config "${config}"
-              else
-                echo "WARNING: Config fragment not found: ${config}"
-              fi
-            done
-          fi
 
           # Enable Mali CSF configs in kernel config
           echo "Enabling Mali CSF kernel configs..."
@@ -267,58 +170,53 @@ jobs:
             --set-str CONFIG_MALI_PLATFORM_NAME devicetree \
             --disable CONFIG_MALI_DEBUG || true
 
-          # Build kernel image only (skip dtbs and modules)
-          echo "Building kernel image..."
-          make O=out ${MAKE_GOALS} -j$(nproc)
-
-          # Prepare kernel build environment for external modules
-          # This installs headers, scripts, Module.symvers needed for building external modules
-          echo "Preparing kernel build environment for external modules..."
+          # Build kernel image and prepare for external modules
+          echo "Building kernel image and preparing modules..."
+          make O=out Image -j$(nproc)
           make O=out modules_prepare -j$(nproc)
 
           # Verify kernel build output
           echo "=== Kernel build output ==="
-          ls -la out/arch/arm64/boot/Image.lz4 2>/dev/null || echo "Image.lz4 not found"
+          ls -la out/arch/arm64/boot/Image 2>/dev/null || echo "Image not found"
           ls -la out/Module.symvers 2>/dev/null || echo "Module.symvers not found"
 
       - name: Install kernel headers (arm64) for external module build
         run: |
           cd kernel
           echo "=== Installing arm64 kernel headers ==="
-          # Must specify ARCH=arm64 to install arm64 headers, not host x86 headers
-          # This installs to out/usr/include which is where the kernel build system looks
           make O=out ARCH=arm64 headers_install -j$(nproc)
           echo "Headers installed to out/usr/include"
           ls -la out/usr/include/ 2>/dev/null | head -10
 
-          # Copy fork's Mali driver UAPI headers to kernel installed headers
-          # The fork's driver/gondul_mali has UAPI headers in include/uapi/
-          # These need to be in the kernel's header installation path for the module build to find them
-          # Source includes use: #include <uapi/gpu/arm/midgard/mali_base_kernel.h>
-          # So headers must be installed at out/usr/include/uapi/gpu/arm/midgard/
-          MALI_DIR="kernel_modules/kernel5.4/gpu/gondul/mali_new"
+          # The Mali driver is at kernel_modules/kernel5.4/gpu/gondul/mali
+          # It already has UAPI headers in include/uapi/
+          MALI_DIR="kernel_modules/kernel5.4/gpu/gondul/mali"
           if [ -d "$MALI_DIR" ]; then
             echo "=== Copying fork's Mali UAPI headers to kernel installed headers ==="
-            # Create the target directory (with uapi/ prefix to match #include <uapi/...>)
             mkdir -p out/usr/include/uapi/gpu/arm/midgard
             # Copy from include/uapi/gpu/arm/midgard/
             if [ -d "$MALI_DIR/include/uapi/gpu/arm/midgard" ]; then
               cp -r "$MALI_DIR/include/uapi/gpu/arm/midgard/"* out/usr/include/uapi/gpu/arm/midgard/
               echo "Copied include/uapi headers"
             fi
-            # Copy from midgard/gpu/ (GPU-specific headers like mali_kbase_gpu_regmap.h)
-            # These are included as <uapi/gpu/arm/midgard/gpu/...>
-            if [ -d "$MALI_DIR/midgard/gpu" ]; then
+            # Copy from gpu/ (GPU-specific headers like mali_kbase_gpu_regmap.h)
+            if [ -d "$MALI_DIR/gpu" ]; then
               mkdir -p out/usr/include/uapi/gpu/arm/midgard/gpu
-              cp -r "$MALI_DIR/midgard/gpu/"*.h out/usr/include/uapi/gpu/arm/midgard/gpu/
-              echo "Copied midgard/gpu headers"
+              cp -r "$MALI_DIR/gpu/"*.h out/usr/include/uapi/gpu/arm/midgard/gpu/
+              echo "Copied gpu headers"
+            fi
+            # Copy CSF headers
+            if [ -d "$MALI_DIR/include/uapi/gpu/arm/midgard/csf" ]; then
+              mkdir -p out/usr/include/uapi/gpu/arm/midgard/csf
+              cp -r "$MALI_DIR/include/uapi/gpu/arm/midgard/csf/"*.h out/usr/include/uapi/gpu/arm/midgard/csf/
+              echo "Copied CSF UAPI headers"
             fi
             echo "UAPI headers installed to out/usr/include/uapi/gpu/arm/midgard/"
             ls -la out/usr/include/uapi/gpu/arm/midgard/
             ls -la out/usr/include/uapi/gpu/arm/midgard/gpu/ 2>/dev/null || true
+            ls -la out/usr/include/uapi/gpu/arm/midgard/csf/ 2>/dev/null || true
 
             # Copy fork's version_compat_defs.h to kernel source tree include/linux
-            # The Mali driver includes: #include <linux/version_compat_defs.h>
             echo "=== Copying fork's version_compat_defs.h to kernel source tree ==="
             if [ -f "$MALI_DIR/include/linux/version_compat_defs.h" ]; then
               mkdir -p include/linux
@@ -329,13 +227,11 @@ jobs:
               echo "WARNING: version_compat_defs.h not found in fork's driver"
             fi
 
-            # Copy fork's memory_group_manager.h compatibility header to kernel source tree include/linux
-            # The Mali driver includes: #include <linux/memory_group_manager.h>
-            # This header is provided by the fork's driver for kernel 5.4 compatibility
+            # Copy fork's memory_group_manager.h to kernel source tree include/linux
             echo "=== Copying fork's memory_group_manager.h to kernel source tree ==="
-            if [ -f "$MALI_DIR/include/linux/memory_group_manager.h" ]; then
+            if [ -f "$MALI_DIR/memory_group_manager.h" ]; then
               mkdir -p include/linux
-              cp "$MALI_DIR/include/linux/memory_group_manager.h" include/linux/
+              cp "$MALI_DIR/memory_group_manager.h" include/linux/
               echo "Copied memory_group_manager.h to include/linux/"
               ls -la include/linux/memory_group_manager.h
             else
@@ -343,30 +239,24 @@ jobs:
             fi
 
             # Copy fork's Mali UAPI headers to kernel source tree include/uapi/
-            # The kernel build system for external modules (make O=out M=...) looks for
-            # UAPI headers in the kernel source tree's include/uapi/ directory
             echo "=== Copying fork's Mali UAPI headers to kernel source tree include/uapi/ ==="
             mkdir -p include/uapi/gpu/arm/midgard
             mkdir -p include/uapi/gpu/arm/midgard/gpu
-            # Copy from include/uapi/gpu/arm/midgard/
+            mkdir -p include/uapi/gpu/arm/midgard/csf
             if [ -d "$MALI_DIR/include/uapi/gpu/arm/midgard" ]; then
               cp -r "$MALI_DIR/include/uapi/gpu/arm/midgard/"* include/uapi/gpu/arm/midgard/
               echo "Copied include/uapi headers to include/uapi/"
             fi
-            # Copy from midgard/gpu/ (GPU-specific headers like mali_kbase_gpu_regmap.h)
-            if [ -d "$MALI_DIR/midgard/gpu" ]; then
-              cp -r "$MALI_DIR/midgard/gpu/"*.h include/uapi/gpu/arm/midgard/gpu/
-              echo "Copied midgard/gpu headers to include/uapi/"
+            if [ -d "$MALI_DIR/gpu" ]; then
+              cp -r "$MALI_DIR/gpu/"*.h include/uapi/gpu/arm/midgard/gpu/
+              echo "Copied gpu headers to include/uapi/"
             fi
-
-            # Copy CSF UAPI headers from fork's driver
-            mkdir -p include/uapi/gpu/arm/midgard/csf
             if [ -d "$MALI_DIR/include/uapi/gpu/arm/midgard/csf" ]; then
               cp -r "$MALI_DIR/include/uapi/gpu/arm/midgard/csf/"*.h include/uapi/gpu/arm/midgard/csf/
-              echo "Copied fork's CSF UAPI headers to include/uapi/"
+              echo "Copied CSF UAPI headers to include/uapi/"
             fi
 
-            # Copy ALL UAPI headers from platform-tools driver source
+            # Also copy UAPI headers from platform-tools driver source (driver/product/kernel/include/uapi/gpu/arm/midgard/)
             UAPI_SRC="driver/product/kernel/include/uapi/gpu/arm/midgard"
             UAPI_DST="include/uapi/gpu/arm/midgard"
             OUT_UAPI_DST="out/include/uapi/gpu/arm/midgard"
@@ -449,10 +339,10 @@ jobs:
             echo "WARNING: Mali driver not found at $MALI_DIR, skipping UAPI header copy"
           fi
 
-      - name: Build Mali module with CSF support (in-tree build)
+      - name: Build Mali module with CSF support (external module build)
         run: |
           cd kernel
-          MALI_DIR="kernel_modules/kernel5.4/gpu/gondul/mali_new"
+          MALI_DIR="kernel_modules/kernel5.4/gpu/gondul/mali"
           if [ -d "$MALI_DIR" ]; then
             echo "=== Building Mali module with CSF support ==="
             echo "MALI_DIR: $MALI_DIR"
@@ -474,13 +364,13 @@ jobs:
               CONFIG_MALI_GATOR_SUPPORT=y \
               CONFIG_MALI_DEBUG=n \
               CONFIG_MALI_PLATFORM_NAME="devicetree" \
-              EXTRA_CFLAGS="-Wno-error -Wno-return-type -Wno-misleading-indentation -Wno-implicit-int -Wno-implicit-function-declaration -fno-sanitize=shadow-call-stack -I$MALI_ABS_DIR/base -I$MALI_ABS_DIR/include -I$KERNEL_ABS_DIR/include" \
+              EXTRA_CFLAGS="-Wno-error -Wno-return-type -Wno-misleading-indentation -Wno-implicit-int -Wno-implicit-function-declaration -fno-sanitize=shadow-call-stack -std=gnu11 -I$MALI_ABS_DIR -I$MALI_ABS_DIR/include -I$KERNEL_ABS_DIR/include" \
               -j$(nproc) modules
 
             echo "Mali module build completed"
           else
             echo "ERROR: Mali driver not found at $MALI_DIR!"
-            find . -name "mali_new" -type d 2>/dev/null || true
+            find . -name "mali" -type d 2>/dev/null | head -10 || true
             exit 1
           fi
 
@@ -535,6 +425,7 @@ jobs:
           echo "Kernel commit: ${KERNEL_COMMIT}" > build-info.txt
           echo "Branch: ${KERNEL_REF}" >> build-info.txt
           echo "CSF enabled: ${ENABLE_CSF}" >> build-info.txt
+          echo "Defconfig: ${DEFCONFIG}" >> build-info.txt
           echo "Build date: $(date -u)" >> build-info.txt
           uname -a >> build-info.txt
           echo "Module size: $(ls -lh **/mali_kbase.ko 2>/dev/null | awk '{print $5}' | head -1)" >> build-info.txt
@@ -566,10 +457,11 @@ jobs:
           tag_name: mali-csf-${{ needs.build.outputs.kernel_commit || github.sha }}
           name: "Mali CSF Module - ${{ needs.build.outputs.kernel_commit || github.sha }}"
           body: |
-            Mali kernel module with CSF (Valhall) support for Transsion UMS9230
+            Mali kernel module with CSF (Valhall) support for Transsion UMS9230 (T606)
 
             **Kernel:** `${{ needs.build.outputs.kernel_commit || github.sha }}`
-            **Branch:** `${{ github.event.inputs.kernel_ref || 'master' }}`
+            **Branch:** `${{ github.event.inputs.kernel_ref || 'build-infra' }}`
+            **Defconfig:** `bg6_defconfig`
             **CSF Enabled:** ${{ github.event.inputs.enable_csf || 'true' }}
 
             **Install:**
