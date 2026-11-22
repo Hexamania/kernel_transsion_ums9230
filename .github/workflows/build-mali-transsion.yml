@@ -120,12 +120,18 @@ jobs:
       - name: Disable KernelSU (not in fork's config)
         run: |
           cd kernel
-          if [ -d "drivers/kernelsu" ]; then
-            echo "KernelSU found, but fork's defconfig doesn't enable it. Disabling..."
+          # Remove KernelSU Kconfig reference regardless of whether submodule is present
+          # The Kconfig reference exists in kernel source but submodule isn't checked out
+          if grep -q 'source "drivers/kernelsu/Kconfig"' drivers/Kconfig; then
+            echo "Found KernelSU Kconfig reference, removing..."
             sed -i '/source "drivers\/kernelsu\/Kconfig"/d' drivers/Kconfig || true
             echo "KernelSU Kconfig source removed"
           else
-            echo "KernelSU not found in kernel source, skipping"
+            echo "No KernelSU Kconfig reference found"
+          fi
+          # Also check for any CONFIG_KERNELSU references in Kconfig files
+          if grep -r "CONFIG_KERNELSU" --include="Kconfig" . 2>/dev/null | grep -v ".git"; then
+            echo "WARNING: Found CONFIG_KERNELSU references in Kconfig files"
           fi
 
       - name: Build kernel with fork's defconfig
