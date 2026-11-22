@@ -194,13 +194,15 @@ jobs:
 
           # Patch arm64 atomic headers for atomic64_t compatibility with GCC 15
           # kernel 5.4 arm64 atomic.h uses atomic64_t but doesn't define it.
+          # atomic64_t must be a struct with a 'counter' member (not bare long long)
+          # because arch/arm64 asm code accesses ((v)->counter).
           # Adding just the typedef (not the full header) avoids conflicts with
           # asm-generic/atomic-instrumented.h which defines the same functions.
           # Add at top of file (line 1) so it's visible before asm/atomic_ll_sc.h
           # (included via asm/lse.h from atomic.h line 16) uses atomic64_t.
-          if ! grep -q 'typedef long long atomic64_t' arch/arm64/include/asm/atomic.h; then
-            echo "Adding atomic64_t typedef to arch/arm64/include/asm/atomic.h..."
-            sed -i '1i typedef long long atomic64_t;' arch/arm64/include/asm/atomic.h
+          if ! grep -q 'typedef struct.*atomic64_t' arch/arm64/include/asm/atomic.h; then
+            echo "Adding atomic64_t struct typedef to arch/arm64/include/asm/atomic.h..."
+            sed -i '1i typedef struct { volatile long long counter; } atomic64_t;' arch/arm64/include/asm/atomic.h
           fi
 
           # Build kernel image and prepare for external modules
