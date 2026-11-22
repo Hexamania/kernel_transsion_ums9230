@@ -6,7 +6,7 @@ on:
       kernel_ref:
         description: 'Kernel branch/tag/commit to build (from fork)'
         required: false
-        default: 'build-infra'
+        default: 'master'
         type: string
       enable_csf:
         description: 'Enable CSF (Valhall) support'
@@ -196,9 +196,11 @@ jobs:
           # kernel 5.4 arm64 atomic.h uses atomic64_t but doesn't define it.
           # Adding just the typedef (not the full header) avoids conflicts with
           # asm-generic/atomic-instrumented.h which defines the same functions.
+          # Add at top of file (line 1) so it's visible before asm/atomic_ll_sc.h
+          # (included via asm/lse.h from atomic.h line 16) uses atomic64_t.
           if ! grep -q 'typedef long long atomic64_t' arch/arm64/include/asm/atomic.h; then
             echo "Adding atomic64_t typedef to arch/arm64/include/asm/atomic.h..."
-            sed -i '/#ifdef __KERNEL__/a typedef long long atomic64_t;' arch/arm64/include/asm/atomic.h
+            sed -i '1i typedef long long atomic64_t;' arch/arm64/include/asm/atomic.h
           fi
 
           # Build kernel image and prepare for external modules
