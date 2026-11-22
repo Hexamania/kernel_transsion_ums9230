@@ -15,7 +15,7 @@ on:
         type: boolean
   push:
     branches:
-      - master
+      - build-infra
     paths:
       - '.github/workflows/build-mali-transsion.yml'
       - 'kernel_modules/kernel5.4/gpu/gondul/mali/**'
