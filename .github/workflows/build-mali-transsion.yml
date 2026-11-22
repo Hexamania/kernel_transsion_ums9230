@@ -117,22 +117,40 @@ jobs:
             exit 1
           fi
 
-      - name: Disable KernelSU (not in fork's config)
+      - name: Remove missing submodule Kconfig references
         run: |
           cd kernel
-          # Remove KernelSU Kconfig reference regardless of whether submodule is present
-          # The Kconfig reference exists in kernel source but submodule isn't checked out
+          # Remove all Kconfig references to submodules that aren't checked out
+          # since submodules: false in checkout step
+          echo "=== Removing missing submodule Kconfig references ==="
+
+          # KernelSU
           if grep -q 'source "drivers/kernelsu/Kconfig"' drivers/Kconfig; then
-            echo "Found KernelSU Kconfig reference, removing..."
+            echo "Removing KernelSU Kconfig reference..."
             sed -i '/source "drivers\/kernelsu\/Kconfig"/d' drivers/Kconfig || true
-            echo "KernelSU Kconfig source removed"
-          else
-            echo "No KernelSU Kconfig reference found"
           fi
-          # Also check for any CONFIG_KERNELSU references in Kconfig files
-          if grep -r "CONFIG_KERNELSU" --include="Kconfig" . 2>/dev/null | grep -v ".git"; then
-            echo "WARNING: Found CONFIG_KERNELSU references in Kconfig files"
+
+          # fs/nomount (likely another submodule)
+          if grep -q 'source "fs/nomount/Kconfig"' fs/Kconfig; then
+            echo "Removing fs/nomount Kconfig reference..."
+            sed -i '/source "fs\/nomount\/Kconfig"/d' fs/Kconfig || true
           fi
+
+          # Check for any other missing submodule references
+          echo "Checking for other missing submodule Kconfig references..."
+          for ref in $(grep -r 'source "' --include="Kconfig" . 2>/dev/null | grep -v ".git" | sed -n 's/.*source "\([^"]*\)".*/\1/p' | sort -u); do
+            if [ ! -e "$ref" ]; then
+              echo "Found missing submodule reference: $ref"
+              # Find which Kconfig file contains this reference
+              kconfig_file=$(grep -r "source \"$ref\"" --include="Kconfig" . 2>/dev/null | head -1 | cut -d: -f1)
+              if [ -n "$kconfig_file" ]; then
+                echo "Removing from $kconfig_file..."
+                sed -i "\|source \"$ref\"|d" "$kconfig_file" || true
+              fi
+            fi
+          done
+
+          echo "Done removing missing submodule Kconfig references"
 
       - name: Build kernel with fork's defconfig
         run: |
