@@ -70,19 +70,19 @@ jobs:
             python3-pyelftools libncurses5-dev \
             gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi
 
-      - name: Setup clang
+      - name: Setup GCC toolchain
         run: |
-          clang --version
-          which ld.lld
-          which llvm-ar
-          echo "CC=clang" >> $GITHUB_ENV
-          echo "LD=ld.lld" >> $GITHUB_ENV
-          echo "AR=llvm-ar" >> $GITHUB_ENV
-          echo "NM=llvm-nm" >> $GITHUB_ENV
-          echo "OBJCOPY=llvm-objcopy" >> $GITHUB_ENV
-          echo "OBJDUMP=llvm-objdump" >> $GITHUB_ENV
-          echo "READELF=llvm-readelf" >> $GITHUB_ENV
-          echo "STRIP=llvm-strip" >> $GITHUB_ENV
+          aarch64-linux-gnu-gcc --version
+          which aarch64-linux-gnu-ld
+          which aarch64-linux-gnu-ar
+          echo "CC=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+          echo "LD=aarch64-linux-gnu-ld" >> $GITHUB_ENV
+          echo "AR=aarch64-linux-gnu-ar" >> $GITHUB_ENV
+          echo "NM=aarch64-linux-gnu-nm" >> $GITHUB_ENV
+          echo "OBJCOPY=aarch64-linux-gnu-objcopy" >> $GITHUB_ENV
+          echo "OBJDUMP=aarch64-linux-gnu-objdump" >> $GITHUB_ENV
+          echo "READELF=aarch64-linux-gnu-readelf" >> $GITHUB_ENV
+          echo "STRIP=aarch64-linux-gnu-strip" >> $GITHUB_ENV
 
       - name: Check Mali CSF config in kernel
         run: |
@@ -158,21 +158,19 @@ jobs:
           export ROOT_DIR=$(pwd)
           export KERNEL_DIR=""
           export ARCH=arm64
-          export CC=clang
-          export LD=ld.lld
-          export AR=llvm-ar
-          export NM=llvm-nm
-          export OBJCOPY=llvm-objcopy
-          export OBJDUMP=llvm-objdump
-          export READELF=llvm-readelf
-          export STRIP=llvm-strip
+          export CC=aarch64-linux-gnu-gcc
+          export LD=aarch64-linux-gnu-ld
+          export AR=aarch64-linux-gnu-ar
+          export NM=aarch64-linux-gnu-nm
+          export OBJCOPY=aarch64-linux-gnu-objcopy
+          export OBJDUMP=aarch64-linux-gnu-objdump
+          export READELF=aarch64-linux-gnu-readelf
+          export STRIP=aarch64-linux-gnu-strip
           export CROSS_COMPILE=aarch64-linux-gnu-
           export CROSS_COMPILE_ARM32=arm-linux-gnueabi-
-          export CLANG_TRIPLE=aarch64-linux-gnu-
-          # Disable Werror and add C99 standard for clang compatibility with older kernel code
+          # Disable Werror and add C99 standard for GCC compatibility with older kernel code
           # -std=gnu11 enables C11 mode which allows 'for' loop initial declarations
-          # Also disable shadow-call-stack which may not be supported
-          export KCFLAGS="-Wno-error -Wno-return-type -Wno-misleading-indentation -Wno-implicit-int -Wno-implicit-function-declaration -fno-sanitize=shadow-call-stack -std=gnu11"
+          export KCFLAGS="-Wno-error -Wno-return-type -Wno-misleading-indentation -Wno-implicit-int -Wno-implicit-function-declaration -std=gnu11"
 
           echo "=== Using defconfig: ${DEFCONFIG} ==="
           DEFCONFIG_FILE="arch/arm64/configs/${DEFCONFIG}"
@@ -325,23 +323,22 @@ jobs:
             echo "MALI_DIR: $MALI_DIR"
 
             # Build external module from kernel source tree using M= parameter
-            # This uses the kernel source tree (which has all headers) with O=out for output
-            # Must explicitly pass ARCH and CROSS_COMPILE since each step runs in separate shell
+            # Uses the same GCC toolchain as the kernel build (critical for vermagic/ABI match)
             # Add Mali driver's UAPI directories to include path for #include <uapi/gpu/arm/midgard/...>
-            # Also add kernel source tree's include/ for CSF UAPI headers (since they're included as <uapi/...>)
-            # Use EXTRA_CFLAGS (not KCFLAGS) for external module builds; use absolute paths
+            # Also add kernel source tree's include/ for CSF UAPI headers
             MALI_ABS_DIR="$(pwd)/$MALI_DIR"
             KERNEL_ABS_DIR="$(pwd)"
             make O=out M="$MALI_DIR" \
               ARCH=arm64 \
               CROSS_COMPILE=aarch64-linux-gnu- \
+              CC=aarch64-linux-gnu-gcc \
               CONFIG_MALI_MIDGARD=m \
               CONFIG_MALI_CSF_SUPPORT=y \
               CONFIG_MALI_DEVFREQ=y \
               CONFIG_MALI_GATOR_SUPPORT=y \
               CONFIG_MALI_DEBUG=n \
               CONFIG_MALI_PLATFORM_NAME="devicetree" \
-              EXTRA_CFLAGS="-Wno-error -Wno-return-type -Wno-misleading-indentation -Wno-implicit-int -Wno-implicit-function-declaration -fno-sanitize=shadow-call-stack -std=gnu11 -I$MALI_ABS_DIR -I$MALI_ABS_DIR/include -I$KERNEL_ABS_DIR/include" \
+              EXTRA_CFLAGS="-Wno-error -Wno-return-type -Wno-misleading-indentation -Wno-implicit-int -Wno-implicit-function-declaration -std=gnu11 -I$MALI_ABS_DIR -I$MALI_ABS_DIR/include -I$KERNEL_ABS_DIR/include" \
               -j$(nproc) modules
 
             echo "Mali module build completed"
