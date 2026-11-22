@@ -68,7 +68,7 @@ jobs:
             libssl-dev bc flex bison libelf-dev dwarves \
             python3 git wget cpio kmod ccache \
             python3-pyelftools libncurses5-dev \
-            gcc-aarch64-linux-gnu gcc-arm-linux-gnuabi
+            gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi
 
       - name: Setup clang
         run: |
