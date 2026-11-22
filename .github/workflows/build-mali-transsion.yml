@@ -152,6 +152,17 @@ jobs:
 
           echo "Done removing missing submodule Kconfig references"
 
+      - name: Patch arm64 atomic headers for GCC compatibility
+        run: |
+          cd kernel
+          # Kernel 5.4 arm64 atomic headers are missing atomic64_t declaration
+          # when built with newer toolchains (Clang 21, GCC 15+)
+          # atomic64_t is defined in asm-generic/atomic-long.h
+          if ! grep -q 'asm-generic/atomic-long.h' arch/arm64/include/asm/atomic.h; then
+            echo "Patching arch/arm64/include/asm/atomic.h for atomic64_t..."
+            sed -i '1i#include <asm-generic/atomic-long.h>' arch/arm64/include/asm/atomic.h
+          fi
+
       - name: Build kernel with fork's defconfig
         run: |
           cd kernel
