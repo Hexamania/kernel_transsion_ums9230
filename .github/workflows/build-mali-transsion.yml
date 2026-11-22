@@ -51,7 +51,7 @@ jobs:
           repository: Hexamania/kernel_transsion_ums9230
           ref: ${{ env.KERNEL_REF }}
           path: kernel
-          submodules: recursive
+          submodules: false
 
       - name: Set kernel commit output
         id: get_commit
